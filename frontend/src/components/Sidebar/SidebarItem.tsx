@@ -2,8 +2,8 @@ import Collapse from '@mui/material/Collapse';
 import List from '@mui/material/List';
 import ListItem, { ListItemProps } from '@mui/material/ListItem';
 import React, { memo } from 'react';
-import { generatePath } from 'react-router';
-import { formatClusterPathParam, getClusterPrefixedPath, getSelectedClusters } from '../../lib/cluster';
+import { generatePath, useLocation } from 'react-router';
+import { formatClusterPathParam, getCluster, getClusterPrefixedPath, getSelectedClusters } from '../../lib/cluster';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
 import ListItemLink from './ListItemLink';
@@ -67,7 +67,15 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     isCR,
     ...other
   } = props;
-  const clusters = getSelectedClusters();
+  
+  // IMPORTANT: Use useLocation to ensure component re-renders when URL changes
+  // This fixes the bug where sidebar links pointed to wrong cluster after switching
+  const location = useLocation();
+  
+  // Get the current cluster from the URL (triggers re-render on URL change)
+  const currentCluster = getCluster(location.pathname);
+  const clusters = currentCluster ? [currentCluster] : getSelectedClusters();
+  
   let fullURL = url;
   if (fullURL && useClusterURL && clusters.length && !fullURL.startsWith('http')) {
     fullURL = generatePath(getClusterPrefixedPath(url), {

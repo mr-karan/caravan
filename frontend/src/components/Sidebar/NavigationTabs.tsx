@@ -4,7 +4,7 @@ import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import cloneDeep from 'lodash/cloneDeep';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { generatePath, useNavigate } from 'react-router-dom';
+import { generatePath, useLocation, useNavigate } from 'react-router-dom';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { getRoute } from '../../lib/router';
 import { createRouteURL } from '../../lib/router/createRouteURL';
@@ -90,10 +90,14 @@ function findIndexParentOfSubList(list: SidebarItemProps[], name: string | null)
 
 export default function NavigationTabs() {
   const navigate = useNavigate();
+  const location = useLocation();
   const sidebar = useTypedSelector(state => state.sidebar);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('xs'));
   const isSmallSideBar = useMediaQuery(theme.breakpoints.only('sm'));
+  
+  // Get current cluster from URL - used in handlers below
+  const currentCluster = getCluster(location.pathname);
   
   const [secondLevelSidebarItems, setSecondLevelTabRoutes] = useState<SidebarItemProps[]>([]);
 
@@ -160,15 +164,15 @@ export default function NavigationTabs() {
       }
 
       const item = subList[index];
-      if (item.url && item.useClusterURL && getCluster()) {
-        navigate(generatePath(getClusterPrefixedPath(item.url), { cluster: getCluster()! }));
+      if (item.url && item.useClusterURL && currentCluster) {
+        navigate(generatePath(getClusterPrefixedPath(item.url), { cluster: currentCluster }));
       } else if (item.url) {
         navigate(item.url);
       } else {
         navigate(getFullURLOnRoute(item.name, item.isCR, item.subList ?? []));
       }
     },
-    [setSecondLevelTabRoutes, subList, navigationItem, navigate]
+    [setSecondLevelTabRoutes, subList, navigationItem, navigate, currentCluster]
   );
 
   const tabSecondLevelChangeHandler = useCallback(
@@ -178,8 +182,8 @@ export default function NavigationTabs() {
       }
       const url = secondLevelSidebarItems[index].url;
       const useClusterURL = !!secondLevelSidebarItems[index].useClusterURL;
-      if (url && useClusterURL && getCluster()) {
-        navigate(generatePath(getClusterPrefixedPath(url), { cluster: getCluster()! }));
+      if (url && useClusterURL && currentCluster) {
+        navigate(generatePath(getClusterPrefixedPath(url), { cluster: currentCluster }));
       } else if (url) {
         navigate(url);
       } else {
@@ -194,7 +198,7 @@ export default function NavigationTabs() {
         }
       }
     },
-    [secondLevelSidebarItems, navigate]
+    [secondLevelSidebarItems, navigate, currentCluster, secondLevelTabRoutes]
   );
 
   // Always show the navigation tabs when the sidebar is the small version
