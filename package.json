@@ -69,7 +69,8 @@
     "start:frontend": "bun run frontend:start",
     "plugins:test": "cd plugins/caravan-plugin && bun install && ./test-caravan-plugin.js && ./test-plugins-examples.sh && cd ../pluginctl/src && bun install && bun ./plugin-management.e2e.js && cd .. && bunx jest src/multi-plugin-management.test.js && bunx jest src/plugin-management.test.js && bun run test",
     "image:build": "sh -c 'docker buildx build --pull --platform=local -t ghcr.io/caravan-k8s/caravan:$(git describe --tags --always --dirty) -f Dockerfile .'",
-    "image:verify-image-digests": "bun tools/verify-image-digests.js"
+    "image:verify-image-digests": "bun tools/verify-image-digests.js",
+    "prepare": "husky"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
