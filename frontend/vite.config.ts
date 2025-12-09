@@ -36,14 +36,8 @@ export default defineConfig({
         target: backendTarget,
         changeOrigin: true,
       },
-      '/oidc': {
-        target: backendTarget,
-        changeOrigin: true,
-      },
-      '/oidc-callback': {
-        target: backendTarget,
-        changeOrigin: true,
-      },
+      // Note: /oidc/callback is handled by frontend React Router, not backend
+      // Only proxy actual OIDC API calls if we add them later
       '/wsMultiplexer': {
         target: backendTarget,
         changeOrigin: true,
