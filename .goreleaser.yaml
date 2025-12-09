@@ -1,0 +1,109 @@
+version: 2
+project_name: caravan
+
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=0
+  - GITHUB_ORG=mr-karan
+
+before:
+  hooks:
+    # Build frontend and prepare for embedding
+    - just build-frontend
+    - rm -rf backend/pkg/spa/static
+    - mkdir -p backend/pkg/spa/static
+    - sh -c "cp -R frontend/build/* backend/pkg/spa/static/"
+
+builds:
+  - binary: caravan
+    main: ./cmd
+    dir: backend
+    tags:
+      - embed
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X "main.buildString={{ .Tag }} ({{ .ShortCommit }} {{ .Date }}, {{ .Os }}/{{ .Arch }})"
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    format_overrides:
+      - goos: darwin
+        formats:
+          - zip
+      - goos: linux
+        formats:
+          - tar.gz
+    files:
+      - README.md
+      - LICENSE*
+      - docs/*
+
+dockers:
+  - use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:latest-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description="Caravan - A modern web UI for HashiCorp Nomad"
+      - --label=org.opencontainers.image.url=https://github.com/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}
+      - --label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+    dockerfile: Dockerfile.goreleaser
+
+  - use: buildx
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:latest-arm64v8"
+      - "ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:{{ .Tag }}-arm64v8"
+    build_flag_templates:
+      - --platform=linux/arm64/v8
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description="Caravan - A modern web UI for HashiCorp Nomad"
+      - --label=org.opencontainers.image.url=https://github.com/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}
+      - --label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+    dockerfile: Dockerfile.goreleaser
+
+docker_manifests:
+  - name_template: ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:latest
+    image_templates:
+      - ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:latest-amd64
+      - ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:latest-arm64v8
+
+  - name_template: ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:{{ .Tag }}
+    image_templates:
+      - ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:{{ .Tag }}-amd64
+      - ghcr.io/{{ .Env.GITHUB_ORG }}/{{ .ProjectName }}:{{ .Tag }}-arm64v8
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+

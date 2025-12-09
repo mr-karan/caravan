@@ -1,0 +1,19 @@
+# Dockerfile for GoReleaser
+# This expects a pre-built binary with embedded frontend assets
+FROM alpine:3.22
+
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates tzdata
+
+# Create non-root user
+RUN adduser -D -u 1000 caravan
+
+# Copy the pre-built binary from GoReleaser
+COPY caravan /usr/local/bin/caravan
+
+# Switch to non-root user
+USER caravan
+
+EXPOSE 4466
+
+ENTRYPOINT ["/usr/local/bin/caravan"]

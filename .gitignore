@@ -5,6 +5,7 @@ backend/tmp
 backend/tools
 backend/cmd/static/*
 backend/dist/*
+dist/
 backend/coverage.out
 backend/pkg/spa/static/*
 docs/development/storybook/

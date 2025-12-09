@@ -1,11 +1,9 @@
-name: Build and Push Container
+name: Build Container (Edge)
 
 on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - main
@@ -42,10 +40,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=edge,branch=main
             type=sha,prefix=
 
       - name: Build and push
