@@ -10,6 +10,7 @@ import {
   Toolbar,
   Tooltip,
   Typography,
+  useTheme,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -25,21 +26,100 @@ interface TaskLogsProps {
   onClose?: () => void;
 }
 
+// Configuration for log buffer
+const MAX_LOG_LINES = 2000; // Maximum lines to keep in memory
+const MAX_DISPLAY_LINES = 500; // Lines to render at once (for performance)
+const SCROLL_THROTTLE_MS = 100; // Throttle scroll-to-bottom
+const BATCH_UPDATE_MS = 50; // Batch log updates every 50ms
+
 export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
-  const [logs, setLogs] = useState<string>('');
+  const theme = useTheme();
   const [logType, setLogType] = useState<'stdout' | 'stderr'>('stdout');
   const [isStreaming, setIsStreaming] = useState(true);
   const [autoScroll, setAutoScroll] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const logsEndRef = useRef<HTMLDivElement>(null);
+  const [lineCount, setLineCount] = useState(0);
+  
+  // Refs for performance - avoid React re-renders
   const logsContainerRef = useRef<HTMLDivElement>(null);
+  const logContentRef = useRef<HTMLPreElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Log buffer - kept outside React state for performance
+  const logBufferRef = useRef<string[]>([]);
+  const pendingLogsRef = useRef<string[]>([]);
+  const lastScrollTimeRef = useRef<number>(0);
+  const batchUpdateTimerRef = useRef<number | null>(null);
+  const isUserScrollingRef = useRef(false);
+  const fullLogHistoryRef = useRef<string[]>([]); // For download
 
+  // Throttled scroll to bottom
   const scrollToBottom = useCallback(() => {
-    if (autoScroll && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!autoScroll || isUserScrollingRef.current) return;
+    
+    const now = Date.now();
+    if (now - lastScrollTimeRef.current < SCROLL_THROTTLE_MS) return;
+    lastScrollTimeRef.current = now;
+
+    const container = logsContainerRef.current;
+    if (container) {
+      // Use scrollTop directly instead of scrollIntoView for better performance
+      container.scrollTop = container.scrollHeight;
     }
   }, [autoScroll]);
+
+  // Update DOM directly for better performance
+  const updateLogDisplay = useCallback(() => {
+    const logContent = logContentRef.current;
+    if (!logContent) return;
+
+    // Get last N lines for display
+    const displayLines = logBufferRef.current.slice(-MAX_DISPLAY_LINES);
+    logContent.textContent = displayLines.join('\n');
+    
+    // Update line count for UI (throttled via batch updates)
+    setLineCount(logBufferRef.current.length);
+    
+    // Schedule scroll
+    requestAnimationFrame(scrollToBottom);
+  }, [scrollToBottom]);
+
+  // Batch process pending logs
+  const processPendingLogs = useCallback(() => {
+    if (pendingLogsRef.current.length === 0) return;
+
+    // Process all pending logs
+    const newLines = pendingLogsRef.current;
+    pendingLogsRef.current = [];
+
+    // Add to buffer
+    logBufferRef.current.push(...newLines);
+    fullLogHistoryRef.current.push(...newLines);
+
+    // Trim buffer if too large
+    if (logBufferRef.current.length > MAX_LOG_LINES) {
+      logBufferRef.current = logBufferRef.current.slice(-MAX_LOG_LINES);
+    }
+
+    // Update display
+    updateLogDisplay();
+  }, [updateLogDisplay]);
+
+  // Schedule batch update
+  const scheduleUpdate = useCallback(() => {
+    if (batchUpdateTimerRef.current !== null) return;
+    
+    batchUpdateTimerRef.current = window.setTimeout(() => {
+      batchUpdateTimerRef.current = null;
+      processPendingLogs();
+    }, BATCH_UPDATE_MS);
+  }, [processPendingLogs]);
+
+  // Add log line (called frequently from stream)
+  const addLogLine = useCallback((line: string) => {
+    pendingLogsRef.current.push(line);
+    scheduleUpdate();
+  }, [scheduleUpdate]);
 
   const startStreaming = useCallback(() => {
     // Abort existing connection
@@ -55,7 +135,7 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
       type: logType,
       follow: isStreaming ? 'true' : 'false',
       origin: 'end',
-      offset: '50000', // ~50KB of history from the end (like Nomad UI)
+      offset: '50000', // ~50KB of history from the end
     });
 
     const url = `${baseUrl}api/clusters/${cluster}/v1/allocation/${encodeURIComponent(allocId)}/logs/${encodeURIComponent(taskName)}?${params}`;
@@ -64,10 +144,9 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    // Use fetch with ReadableStream - can send credentials and custom headers
     fetch(url, {
       method: 'GET',
-      credentials: 'include', // Send cookies cross-origin
+      credentials: 'include',
       signal: abortController.signal,
       headers: {
         Accept: 'text/event-stream',
@@ -86,7 +165,6 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
         const decoder = new TextDecoder();
         let buffer = '';
 
-        // Read the stream
         while (true) {
           const { done, value } = await reader.read();
 
@@ -94,35 +172,34 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
             break;
           }
 
-          // Decode the chunk and add to buffer
           buffer += decoder.decode(value, { stream: true });
 
-          // Process complete SSE events from buffer
+          // Process complete lines
           const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+          buffer = lines.pop() || '';
 
           for (const line of lines) {
-            // SSE format: "data: <content>"
             if (line.startsWith('data: ')) {
-              const data = line.slice(6); // Remove "data: " prefix
-              setLogs(prev => prev + data + '\n');
-              scrollToBottom();
-            } else if (line.startsWith('event: error')) {
-              // Next data line will contain the error
-              continue;
+              const data = line.slice(6);
+              // Split data into individual log lines
+              const logLines = data.split('\n');
+              for (const logLine of logLines) {
+                if (logLine) {
+                  addLogLine(logLine);
+                }
+              }
             }
           }
         }
       })
       .catch(err => {
         if (err.name === 'AbortError') {
-          // Intentionally aborted, not an error
           return;
         }
         console.error('Log streaming error:', err);
         setError(err.message || 'Connection error');
       });
-  }, [allocId, taskName, logType, isStreaming, scrollToBottom]);
+  }, [allocId, taskName, logType, isStreaming, addLogLine]);
 
   const stopStreaming = useCallback(() => {
     if (abortControllerRef.current) {
@@ -131,6 +208,21 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
     }
     setIsStreaming(false);
   }, []);
+
+  // Handle user scroll detection
+  const handleScroll = useCallback(() => {
+    const container = logsContainerRef.current;
+    if (!container) return;
+
+    // Check if user has scrolled away from bottom
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+    isUserScrollingRef.current = !isAtBottom;
+    
+    // If user scrolled to bottom, re-enable auto-scroll
+    if (isAtBottom && !autoScroll) {
+      // Don't auto-enable, let user control it
+    }
+  }, [autoScroll]);
 
   useEffect(() => {
     if (isStreaming) {
@@ -141,39 +233,48 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      if (batchUpdateTimerRef.current) {
+        clearTimeout(batchUpdateTimerRef.current);
+      }
     };
   }, [isStreaming, logType, startStreaming]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [logs, scrollToBottom]);
+  const handleClear = useCallback(() => {
+    logBufferRef.current = [];
+    pendingLogsRef.current = [];
+    fullLogHistoryRef.current = [];
+    if (logContentRef.current) {
+      logContentRef.current.textContent = '';
+    }
+    setLineCount(0);
+  }, []);
 
-  const handleClear = () => {
-    setLogs('');
-  };
-
-  const handleDownload = () => {
-    const blob = new Blob([logs], { type: 'text/plain' });
+  const handleDownload = useCallback(() => {
+    // Use full history for download
+    const content = fullLogHistoryRef.current.join('\n');
+    const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${taskName}-${logType}-${new Date().toISOString()}.log`;
     a.click();
     URL.revokeObjectURL(url);
-  };
+  }, [taskName, logType]);
 
-  const handleRefresh = () => {
-    setLogs('');
+  const handleRefresh = useCallback(() => {
+    handleClear();
     startStreaming();
-  };
+  }, [handleClear, startStreaming]);
 
-  const toggleStreaming = () => {
+  const toggleStreaming = useCallback(() => {
     if (isStreaming) {
       stopStreaming();
     } else {
       setIsStreaming(true);
     }
-  };
+  }, [isStreaming, stopStreaming]);
+
+  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -185,13 +286,14 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
           gap: 1,
           minHeight: 48,
           px: 2,
+          flexShrink: 0,
         }}
       >
         <Select
           size="small"
           value={logType}
           onChange={e => {
-            setLogs('');
+            handleClear();
             setLogType(e.target.value as 'stdout' | 'stderr');
           }}
           sx={{ minWidth: 100 }}
@@ -200,6 +302,11 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
           <MenuItem value="stderr">stderr</MenuItem>
         </Select>
 
+        <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+          {lineCount > 0 && `${lineCount.toLocaleString()} lines`}
+          {lineCount > MAX_DISPLAY_LINES && ` (showing last ${MAX_DISPLAY_LINES})`}
+        </Typography>
+
         <Box sx={{ flexGrow: 1 }} />
 
         <FormControlLabel
@@ -207,7 +314,13 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
             <Switch
               size="small"
               checked={autoScroll}
-              onChange={e => setAutoScroll(e.target.checked)}
+              onChange={e => {
+                setAutoScroll(e.target.checked);
+                if (e.target.checked) {
+                  isUserScrollingRef.current = false;
+                  scrollToBottom();
+                }
+              }}
             />
           }
           label="Auto-scroll"
@@ -232,7 +345,7 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
           </IconButton>
         </Tooltip>
 
-        <Tooltip title="Download">
+        <Tooltip title="Download all logs">
           <IconButton size="small" onClick={handleDownload}>
             <DownloadIcon />
           </IconButton>
@@ -241,32 +354,51 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
 
       <Box
         ref={logsContainerRef}
+        onScroll={handleScroll}
         sx={{
           flexGrow: 1,
           minHeight: 0,
           overflow: 'auto',
-          p: 2,
-          bgcolor: 'grey.900',
-          fontFamily: '"Roboto Mono", "Consolas", "Monaco", monospace',
-          fontSize: '0.85rem',
-          lineHeight: 1.4,
-          whiteSpace: 'pre',
-          color: 'grey.100',
+          bgcolor: isDark ? '#0d1117' : '#1e1e1e',
+          position: 'relative',
         }}
       >
         {error ? (
           <Typography color="error" sx={{ p: 2 }}>
             Error loading logs: {error}
           </Typography>
-        ) : logs ? (
-          <>
-            {logs}
-            <div ref={logsEndRef} />
-          </>
         ) : (
-          <Typography sx={{ color: 'grey.500', fontStyle: 'italic' }}>
-            {isStreaming ? 'Waiting for logs...' : 'Logs paused. Click play to resume.'}
-          </Typography>
+          <Box
+            component="pre"
+            ref={logContentRef}
+            sx={{
+              m: 0,
+              p: 2,
+              fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace',
+              fontSize: '0.8rem',
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              color: isDark ? '#e6edf3' : '#d4d4d4',
+              minHeight: '100%',
+              // Performance: use GPU acceleration
+              transform: 'translateZ(0)',
+              willChange: 'contents',
+            }}
+          >
+            {lineCount === 0 && (
+              <Typography
+                component="span"
+                sx={{
+                  color: isDark ? '#8b949e' : '#6a737d',
+                  fontStyle: 'italic',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {isStreaming ? 'Waiting for logs...' : 'Logs paused. Click play to resume.'}
+              </Typography>
+            )}
+          </Box>
         )}
       </Box>
     </Paper>
