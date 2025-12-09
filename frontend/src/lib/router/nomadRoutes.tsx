@@ -18,6 +18,7 @@ const NamespaceList = React.lazy(() => import('../../components/nomad/namespace/
 const VariableList = React.lazy(() => import('../../components/nomad/variable/VariableList'));
 const VariableDetails = React.lazy(() => import('../../components/nomad/variable/VariableDetails'));
 const TokenDetails = React.lazy(() => import('../../components/nomad/acl/TokenDetails'));
+const OIDCCallback = React.lazy(() => import('../../components/App/OIDCCallback'));
 
 /**
  * Nomad-specific routes for the Caravan UI
@@ -245,6 +246,38 @@ export const nomadRoutes: { [routeName: string]: Route } = {
     useClusterURL: false,
     noAuthRequired: true,
     component: React.lazy(() => import('../../components/App/Login')),
+  },
+
+  // OIDC Callback - handles redirect from OIDC provider
+  oidcCallback: {
+    path: '/oidc/callback',
+    exact: true,
+    name: 'OidcAuth',
+    sidebar: null,
+    useClusterURL: false,
+    noAuthRequired: true,
+    hideAppBar: true,
+    component: () => (
+      <React.Suspense fallback={<div>Loading...</div>}>
+        <OIDCCallback />
+      </React.Suspense>
+    ),
+  },
+
+  // Alternative OIDC callback path (for Nomad UI compatibility)
+  oidcCallbackNomad: {
+    path: '/ui/settings/tokens',
+    exact: true,
+    name: 'OidcAuth',
+    sidebar: null,
+    useClusterURL: false,
+    noAuthRequired: true,
+    hideAppBar: true,
+    component: () => (
+      <React.Suspense fallback={<div>Loading...</div>}>
+        <OIDCCallback />
+      </React.Suspense>
+    ),
   },
 
   // Settings routes (reuse from original)

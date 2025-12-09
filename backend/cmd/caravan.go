@@ -275,6 +275,11 @@ func addNomadRoutes(config *CaravanConfig, mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/clusters/{cluster}/v1/acl/policies", h.ListACLPolicies)
 	mux.HandleFunc("GET /api/clusters/{cluster}/v1/acl/policy/{policyName}", h.GetACLPolicy)
 
+	// ACL OIDC Authentication
+	mux.HandleFunc("GET /api/clusters/{cluster}/v1/acl/auth-methods", h.ListAuthMethods)
+	mux.HandleFunc("POST /api/clusters/{cluster}/v1/acl/oidc/auth-url", h.GetOIDCAuthURL)
+	mux.HandleFunc("POST /api/clusters/{cluster}/v1/acl/oidc/complete-auth", h.CompleteOIDCAuth)
+
 	// Evaluations
 	mux.HandleFunc("GET /api/clusters/{cluster}/v1/evaluations", h.ListEvaluations)
 	mux.HandleFunc("GET /api/clusters/{cluster}/v1/evaluation/{evalID}", h.GetEvaluation)

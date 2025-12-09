@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import {
@@ -34,6 +34,9 @@ import { createRouteURL } from '../../../lib/router/createRouteURL';
 import TaskLogs from './TaskLogs';
 import TaskExec from './TaskExec';
 import { StatusChip } from '../statusStyles';
+
+// Stats polling interval in milliseconds
+const STATS_POLL_INTERVAL = 3000;
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -406,10 +409,67 @@ export default function AllocationDetails() {
   const [error, setError] = useState<Error | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
+  const [statsUpdatedAt, setStatsUpdatedAt] = useState<Date | null>(null);
+  const statsIntervalRef = useRef<number | null>(null);
 
+  // Load allocation data
+  const loadAllocation = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      setLoading(true);
+      const allocData = await getAllocation(id);
+      setAllocation(allocData);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  // Load stats (separate from allocation for polling)
+  const loadStats = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      const statsData = await getAllocationStats(id);
+      setStats(statsData);
+      setStatsUpdatedAt(new Date());
+    } catch (err) {
+      // Silently fail stats - allocation may be on an unreachable node
+      console.warn('Failed to load allocation stats:', err);
+    }
+  }, [id]);
+
+  // Initial load
   useEffect(() => {
     loadAllocation();
-  }, [id]);
+    loadStats();
+  }, [loadAllocation, loadStats]);
+
+  // Stats polling - only when allocation is running
+  useEffect(() => {
+    // Clear existing interval
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current);
+      statsIntervalRef.current = null;
+    }
+
+    // Only poll if allocation is running
+    if (allocation?.ClientStatus === 'running' && id) {
+      statsIntervalRef.current = window.setInterval(() => {
+        loadStats();
+      }, STATS_POLL_INTERVAL);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current);
+      }
+    };
+  }, [allocation?.ClientStatus, id, loadStats]);
 
   // Auto-select first task when allocation loads
   useEffect(() => {
@@ -420,25 +480,6 @@ export default function AllocationDetails() {
       }
     }
   }, [allocation, selectedTask]);
-
-  async function loadAllocation() {
-    if (!id) return;
-
-    try {
-      setLoading(true);
-      const [allocData, statsData] = await Promise.all([
-        getAllocation(id),
-        getAllocationStats(id).catch(() => null),
-      ]);
-      setAllocation(allocData);
-      setStats(statsData);
-      setError(null);
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleRestart(taskName?: string) {
     if (!id) return;
@@ -647,8 +688,37 @@ export default function AllocationDetails() {
       </Paper>
 
       {/* Resource stats */}
-      {stats?.ResourceUsage && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Box sx={{ mb: 3 }}>
+        {statsUpdatedAt && allocation?.ClientStatus === 'running' && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              mb: 1.5,
+              color: 'text.secondary',
+            }}
+          >
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: theme.palette.success.main,
+                animation: 'pulse 2s infinite',
+                '@keyframes pulse': {
+                  '0%': { opacity: 1 },
+                  '50%': { opacity: 0.4 },
+                  '100%': { opacity: 1 },
+                },
+              }}
+            />
+            <Typography variant="caption">
+              Live stats • Updated {statsUpdatedAt.toLocaleTimeString()}
+            </Typography>
+          </Box>
+        )}
+        <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 4 }}>
             <ResourceCard
               icon="mdi:chip"
@@ -656,7 +726,7 @@ export default function AllocationDetails() {
               value={cpuPercent}
               unit="%"
               color={theme.palette.info.main}
-              percent={cpuPercent}
+              percent={Math.min(cpuPercent, 100)}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
@@ -667,7 +737,7 @@ export default function AllocationDetails() {
               total={memoryMaxMB > 0 ? memoryMaxMB : undefined}
               unit="MB"
               color={theme.palette.success.main}
-              percent={memoryMaxMB > 0 ? (memoryMB / memoryMaxMB) * 100 : undefined}
+              percent={memoryMaxMB > 0 ? Math.min((memoryMB / memoryMaxMB) * 100, 100) : undefined}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
@@ -708,7 +778,7 @@ export default function AllocationDetails() {
             </Card>
           </Grid>
         </Grid>
-      )}
+      </Box>
 
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0 }}>

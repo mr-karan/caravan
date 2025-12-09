@@ -1,6 +1,17 @@
-import Box from '@mui/material/Box';
-import Switch from '@mui/material/Switch';
-import Typography from '@mui/material/Typography';
+import { Icon } from '@iconify/react';
+import {
+  alpha,
+  Box,
+  Card,
+  CardContent,
+  Chip,
+  FormControlLabel,
+  Grid,
+  Paper,
+  Switch,
+  Typography,
+  useTheme,
+} from '@mui/material';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
@@ -9,27 +20,79 @@ import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { uiSlice } from '../../../redux/uiSlice';
 import ActionButton from '../../common/ActionButton';
-import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import TimezoneSelect from '../../common/TimezoneSelect';
-import { theme } from '../../TestHelpers/theme';
 import { setTheme, useAppThemes } from '../themeSlice';
-import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
 import { ThemePreview } from './ThemePreview';
 
+// Setting card component for consistent styling
+function SettingCard({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 2,
+        height: '100%',
+      }}
+    >
+      <CardContent sx={{ p: 2.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: 1.5,
+              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Icon icon={icon} width={22} color={theme.palette.primary.main} />
+          </Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle1" fontWeight={600}>
+              {title}
+            </Typography>
+            {description && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                {description}
+              </Typography>
+            )}
+          </Box>
+        </Box>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Settings() {
+  const theme = useTheme();
   const settingsObj = useSettings();
   const storedTimezone = settingsObj.timezone;
   const storedRowsPerPageOptions = settingsObj.tableRowsPerPageOptions;
   const storedSortSidebar = settingsObj.sidebarSortAlphabetically;
-  const storedUseEvict = settingsObj.useEvict;
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
-  const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
@@ -50,132 +113,146 @@ export default function Settings() {
     );
   }, [sortSidebar]);
 
-  useEffect(() => {
-    dispatch(
-      setAppSettings({
-        useEvict: useEvict,
-      })
-    );
-  }, [useEvict]);
-
-  const sidebarLabelID = 'sort-sidebar-label';
-  const evictLabelID = 'use-evict-label';
-  const tableRowsLabelID = 'rows-per-page-label';
-  const timezoneLabelID = 'timezone-label';
-
   return (
-    <SectionBox
-      title="General Settings"
-      headerProps={{
-        actions: [
+    <Box>
+      {/* Header */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          mb: 3,
+          borderRadius: 2,
+          border: `1px solid ${theme.palette.divider}`,
+          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`,
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: 2,
+                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon icon="mdi:cog" width={28} color={theme.palette.primary.main} />
+            </Box>
+            <Box>
+              <Typography variant="h5" fontWeight={600}>
+                Settings
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Customize your Caravan experience
+              </Typography>
+            </Box>
+          </Box>
           <ActionButton
-            key="version"
             icon="mdi:information-outline"
-            description="Version"
+            description="Version Info"
             onClick={() => {
               dispatch(uiSlice.actions.setVersionDialogOpen(true));
             }}
-          />,
-        ],
-      }}
-      backLink
-    >
-      <NameValueTable
-        rows={[
-          {
-            name: 'Resource details view',
-            value: <DrawerModeSettings />,
-          },
-          {
-            name: 'Number of rows for tables',
-            value: (
-              <NumRowsInput
-                defaultValue={storedRowsPerPageOptions || defaultTableRowsPerPageOptions}
-                nameLabelID={tableRowsLabelID}
-              />
-            ),
-            nameID: tableRowsLabelID,
-          },
-          {
-            name: 'Timezone to display for dates',
-            value: (
-              <Box maxWidth="350px">
-                <TimezoneSelect
-                  initialTimezone={selectedTimezone}
-                  onChange={name => setSelectedTimezone(name)}
-                  nameLabelID={timezoneLabelID}
+          />
+        </Box>
+      </Paper>
+
+      {/* Settings Grid */}
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={6}>
+          <SettingCard
+            icon="mdi:table"
+            title="Table Rows"
+            description="Number of rows to display in tables"
+          >
+            <NumRowsInput
+              defaultValue={storedRowsPerPageOptions || defaultTableRowsPerPageOptions}
+              nameLabelID="rows-per-page"
+            />
+          </SettingCard>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <SettingCard
+            icon="mdi:clock-outline"
+            title="Timezone"
+            description="Timezone for displaying dates and times"
+          >
+            <TimezoneSelect
+              initialTimezone={selectedTimezone}
+              onChange={name => setSelectedTimezone(name)}
+              nameLabelID="timezone"
+            />
+          </SettingCard>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <SettingCard
+            icon="mdi:sort-alphabetical-ascending"
+            title="Sidebar Sorting"
+            description="Sort sidebar navigation items alphabetically"
+          >
+            <FormControlLabel
+              control={
+                <Switch
+                  color="primary"
+                  checked={sortSidebar}
+                  onChange={e => setSortSidebar(e.target.checked)}
                 />
-              </Box>
-            ),
-            nameID: timezoneLabelID,
-          },
-          {
-            name: 'Sort sidebar items alphabetically',
-            value: (
-              <Switch
-                color="primary"
-                checked={sortSidebar}
-                onChange={e => setSortSidebar(e.target.checked)}
-                inputProps={{
-                  'aria-labelledby': sidebarLabelID,
-                }}
-              />
-            ),
-            nameID: sidebarLabelID,
-          },
-        ]}
-      />
-      <Box
+              }
+              label={sortSidebar ? 'Enabled' : 'Disabled'}
+              sx={{ mt: 1 }}
+            />
+          </SettingCard>
+        </Grid>
+      </Grid>
+
+      {/* Theme Section */}
+      <Paper
+        elevation={0}
         sx={{
-          mt: '2',
-          borderTop: '1px solid',
-          borderTopColor: 'divider',
-          pt: '2',
+          p: 3,
+          borderRadius: 2,
+          border: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'baseline',
-            px: 1.5,
-            py: 1,
-          }}
-        >
-          <Typography
-            variant="body1"
-            sx={theme => ({
-              textAlign: 'left',
-              color: theme.palette.text.secondary,
-              fontSize: '1rem',
-              [theme.breakpoints.down('sm')]: {
-                fontSize: '1.5rem',
-                color: theme.palette.text.primary,
-              },
-            })}
-          >
-            Theme
-          </Typography>
-        </Box>
-        <Box
-          sx={{
-            width: '100%',
-            margin: 'auto',
-            pb: 5,
-          }}
-        >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <Box
             sx={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: 2,
+              width: 40,
+              height: 40,
+              borderRadius: 1.5,
+              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'center',
-              [theme.breakpoints.down('sm')]: {
-                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                gap: 2,
-              },
             }}
           >
-            {appThemes.map(it => (
+            <Icon icon="mdi:palette" width={22} color={theme.palette.primary.main} />
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" fontWeight={600}>
+              Theme
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Choose your preferred color scheme
+            </Typography>
+          </Box>
+        </Box>
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+            gap: 2,
+          }}
+        >
+          {appThemes.map(it => {
+            const isSelected = themeName === it.name;
+            return (
               <Box
                 key={it.name}
                 role="button"
@@ -185,27 +262,50 @@ export default function Settings() {
                 }}
                 sx={{
                   cursor: 'pointer',
-                  border: themeName === it.name ? '2px solid' : '1px solid',
-                  borderColor: themeName === it.name ? 'primary' : 'divider',
+                  border: isSelected ? '2px solid' : '1px solid',
+                  borderColor: isSelected ? 'primary.main' : 'divider',
                   borderRadius: 2,
-                  p: 1,
+                  p: 1.5,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  transition: '0.2 ease',
+                  transition: 'all 0.2s ease',
+                  backgroundColor: isSelected
+                    ? alpha(theme.palette.primary.main, 0.04)
+                    : 'transparent',
                   '&:hover': {
-                    backgroundColor: 'divider',
+                    borderColor: isSelected ? 'primary.main' : 'primary.light',
+                    backgroundColor: alpha(theme.palette.primary.main, 0.04),
                   },
                 }}
                 onClick={() => dispatch(setTheme(it.name))}
               >
-                <ThemePreview theme={it} size={110} />
-                <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>
+                <ThemePreview theme={it} size={100} />
+                <Box
+                  sx={{
+                    mt: 1.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  <Typography variant="body2" fontWeight={isSelected ? 600 : 400}>
+                    {capitalize(it.name)}
+                  </Typography>
+                  {isSelected && (
+                    <Chip
+                      label="Active"
+                      size="small"
+                      color="primary"
+                      sx={{ height: 20, fontSize: '0.65rem' }}
+                    />
+                  )}
+                </Box>
               </Box>
-            ))}
-          </Box>
+            );
+          })}
         </Box>
-      </Box>
-    </SectionBox>
+      </Paper>
+    </Box>
   );
 }

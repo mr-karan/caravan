@@ -1,14 +1,18 @@
 import { Icon } from '@iconify/react';
-import AppBar from '@mui/material/AppBar';
-import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import { useTheme } from '@mui/material/styles';
-import Toolbar from '@mui/material/Toolbar';
-import Typography from '@mui/material/Typography';
+import {
+  alpha,
+  AppBar,
+  Box,
+  Divider,
+  IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+  Toolbar,
+  Tooltip,
+  useTheme,
+} from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { has } from 'lodash';
 import React, { memo, useCallback } from 'react';
@@ -54,8 +58,6 @@ export function processAppBarActions(
   }
   return appBarActionsProcessed;
 }
-
-// ClusterTitle is now replaced by ClusterSwitcher for better multi-cluster UX
 
 export default function TopBar({}: TopBarProps) {
   const dispatch = useDispatch();
@@ -165,6 +167,41 @@ function AppBarActions({
   return <>{actions}</>;
 }
 
+// Styled icon button for consistent look
+function TopBarIconButton({
+  icon,
+  tooltip,
+  onClick,
+  active,
+}: {
+  icon: string;
+  tooltip: string;
+  onClick?: (e: React.MouseEvent<HTMLElement>) => void;
+  active?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Tooltip title={tooltip}>
+      <IconButton
+        onClick={onClick}
+        size="small"
+        sx={{
+          width: 36,
+          height: 36,
+          color: theme.palette.navbar.color ?? theme.palette.text.primary,
+          backgroundColor: active ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+          '&:hover': {
+            backgroundColor: alpha(theme.palette.primary.main, 0.08),
+          },
+        }}
+      >
+        <Icon icon={icon} width={20} />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
 export const PureTopBar = memo(
   ({
     appBarActions,
@@ -178,8 +215,7 @@ export const PureTopBar = memo(
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    
-    // Get current cluster from URL
+
     const cluster = getCluster();
     const isClusterContext = !!cluster;
 
@@ -213,58 +249,59 @@ export const PureTopBar = memo(
     const renderUserMenu = !!isClusterContext && (
       <Menu
         anchorEl={anchorEl}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         id={userMenuId}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         open={isMenuOpen}
-        onClose={() => {
-          handleMenuClose();
-          handleMobileMenuClose();
-        }}
-        style={{ zIndex: 1400 }}
-        sx={{
-          '& .MuiMenu-list': {
-            paddingBottom: 0,
+        onClose={handleMenuClose}
+        PaperProps={{
+          elevation: 3,
+          sx: {
+            minWidth: 200,
+            mt: 1,
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
           },
         }}
       >
         <MenuItem
-          component="a"
-          onClick={async () => {
-            await logout();
-            handleMenuClose();
-          }}
-        >
-          <ListItemIcon>
-            <Icon icon="mdi:logout" />
-          </ListItemIcon>
-          <ListItemText primary="Log out" />
-        </MenuItem>
-        <MenuItem
-          component="a"
           onClick={() => {
             navigate(createRouteURL('settings'));
             handleMenuClose();
           }}
+          sx={{ py: 1.25 }}
         >
           <ListItemIcon>
-            <Icon icon="mdi:cog-box" />
+            <Icon icon="mdi:cog-outline" width={20} />
           </ListItemIcon>
-          <ListItemText>General Settings</ListItemText>
+          <ListItemText>Settings</ListItemText>
         </MenuItem>
         <MenuItem
-          component="a"
           onClick={() => {
             dispatch(uiSlice.actions.setVersionDialogOpen(true));
             handleMenuClose();
           }}
+          sx={{ py: 1.25 }}
         >
           <ListItemIcon>
-            <Icon icon="mdi:information-outline" />
+            <Icon icon="mdi:information-outline" width={20} />
           </ListItemIcon>
           <ListItemText>
             {getProductName()} {getVersion()['VERSION']}
           </ListItemText>
+        </MenuItem>
+        <Divider sx={{ my: 1 }} />
+        <MenuItem
+          onClick={async () => {
+            await logout();
+            handleMenuClose();
+          }}
+          sx={{ py: 1.25, color: 'error.main' }}
+        >
+          <ListItemIcon sx={{ color: 'inherit' }}>
+            <Icon icon="mdi:logout" width={20} />
+          </ListItemIcon>
+          <ListItemText>Sign out</ListItemText>
         </MenuItem>
       </Menu>
     );
@@ -287,19 +324,14 @@ export const PureTopBar = memo(
       {
         id: DefaultAppBarAction.USER,
         action: !!isClusterContext && (
-          <IconButton
-            aria-label="Account of current user"
-            aria-controls={userMenuId}
-            aria-haspopup="true"
-            color="inherit"
-            onClick={event => {
+          <TopBarIconButton
+            icon="mdi:account-circle"
+            tooltip="Account"
+            onClick={e => {
               handleMenuClose();
-              handleProfileMenuOpen(event);
+              handleProfileMenuOpen(e);
             }}
-            size="medium"
-          >
-            <Icon icon="mdi:account" />
-          </IconButton>
+          />
         ),
       },
     ];
@@ -307,55 +339,27 @@ export const PureTopBar = memo(
     const renderMobileMenu = (
       <Menu
         anchorEl={mobileMoreAnchorEl}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         id={mobileMenuId}
         keepMounted
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         open={isMobileMenuOpen}
         onClose={handleMobileMenuClose}
+        PaperProps={{
+          elevation: 3,
+          sx: {
+            minWidth: 200,
+            mt: 1,
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+          },
+        }}
       >
         <AppBarActionsMenu
           appBarActions={processAppBarActions(allAppBarActionsMobile, appBarActionsProcessors)}
         />
       </Menu>
     );
-
-    const allAppBarActions: AppBarAction[] = [
-      {
-        id: DefaultAppBarAction.CLUSTER,
-        // Always show ClusterSwitcher for navigation - even when rail is visible
-        // This provides a consistent way to switch clusters from the top bar
-        action: <ClusterSwitcher />,
-      },
-      ...appBarActions,
-      {
-        id: DefaultAppBarAction.NOTIFICATION,
-        action: null,
-      },
-      {
-        id: 'global-search',
-        action: <GlobalSearch />,
-      },
-      {
-        id: DefaultAppBarAction.SETTINGS,
-        action: <SettingsButton onClickExtra={handleMenuClose} />,
-      },
-      {
-        id: DefaultAppBarAction.USER,
-        action: !!isClusterContext && (
-          <IconButton
-            aria-label="Account of current user"
-            aria-controls={userMenuId}
-            aria-haspopup="true"
-            onClick={handleProfileMenuOpen}
-            color="inherit"
-            size="medium"
-          >
-            <Icon icon="mdi:account" />
-          </IconButton>
-        ),
-      },
-    ];
 
     const visibleMobileActions = processAppBarActions(
       allAppBarActionsMobile,
@@ -366,28 +370,24 @@ export const PureTopBar = memo(
       <>
         <AppBar
           position="static"
-          sx={theme => ({
+          elevation={0}
+          sx={{
             backgroundImage: 'none',
             zIndex: theme.zIndex.drawer + 1,
             color:
               theme.palette.navbar.color ??
               theme.palette.getContrastText(theme.palette.navbar.background),
             backgroundColor: theme.palette.navbar.background,
-            boxShadow: 'none',
-            borderBottom: '1px solid #eee',
-            borderColor: theme.palette.divider,
-          })}
-          elevation={1}
+            borderBottom: `1px solid ${theme.palette.divider}`,
+          }}
           component="nav"
-          aria-label="Appbar Tools"
-          enableColorOnDark
+          aria-label="Top navigation"
         >
           <Toolbar
             sx={{
-              [theme.breakpoints.down('sm')]: {
-                paddingLeft: 0,
-                paddingRight: 0,
-              },
+              minHeight: '56px !important',
+              px: { xs: 1, sm: 2 },
+              gap: 1,
             }}
           >
             {isSmall ? (
@@ -395,25 +395,61 @@ export const PureTopBar = memo(
                 <CaravanButton open={openSideBar} onToggleOpen={onToggleOpen} />
                 <Box sx={{ flexGrow: 1 }} />
                 {visibleMobileActions.length > 0 && (
-                  <IconButton
-                    aria-label="show more"
-                    aria-controls={mobileMenuId}
-                    aria-haspopup="true"
+                  <TopBarIconButton
+                    icon="mdi:dots-vertical"
+                    tooltip="More options"
                     onClick={handleMobileMenuOpen}
-                    color="inherit"
-                    size="medium"
-                  >
-                    <Icon icon="mdi:more-vert" />
-                  </IconButton>
+                  />
                 )}
               </>
             ) : (
               <>
-                <AppLogo />
-                <Box sx={{ ml: 2, flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+                {/* Logo Section */}
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <AppLogo />
+                </Box>
+
+                {/* Divider */}
+                <Divider
+                  orientation="vertical"
+                  flexItem
+                  sx={{ mx: 1.5, my: 1.5, opacity: 0.3 }}
+                />
+
+                {/* Cluster Switcher */}
+                <ClusterSwitcher />
+
+                {/* Spacer */}
+                <Box sx={{ flexGrow: 1 }} />
+
+                {/* Right Actions */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                  }}
+                >
+                  {/* Custom app bar actions */}
                   <AppBarActions
-                    appBarActions={processAppBarActions(allAppBarActions, appBarActionsProcessors)}
+                    appBarActions={processAppBarActions(appBarActions, appBarActionsProcessors)}
                   />
+
+                  {/* Global Search */}
+                  <GlobalSearch />
+
+                  {/* Settings */}
+                  <SettingsButton onClickExtra={handleMenuClose} />
+
+                  {/* User Menu */}
+                  {isClusterContext && (
+                    <TopBarIconButton
+                      icon="mdi:account-circle"
+                      tooltip="Account"
+                      onClick={handleProfileMenuOpen}
+                      active={isMenuOpen}
+                    />
+                  )}
                 </Box>
               </>
             )}

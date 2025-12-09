@@ -363,43 +363,44 @@ export default function TaskLogs({ allocId, taskName }: TaskLogsProps) {
           position: 'relative',
         }}
       >
-        {error ? (
+        {error && (
           <Typography color="error" sx={{ p: 2 }}>
             Error loading logs: {error}
           </Typography>
-        ) : (
-          <Box
-            component="pre"
-            ref={logContentRef}
-            sx={{
-              m: 0,
-              p: 2,
-              fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace',
-              fontSize: '0.8rem',
-              lineHeight: 1.5,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
-              color: isDark ? '#e6edf3' : '#d4d4d4',
-              minHeight: '100%',
-              // Performance: use GPU acceleration
-              transform: 'translateZ(0)',
-              willChange: 'contents',
-            }}
-          >
-            {lineCount === 0 && (
-              <Typography
-                component="span"
-                sx={{
-                  color: isDark ? '#8b949e' : '#6a737d',
-                  fontStyle: 'italic',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {isStreaming ? 'Waiting for logs...' : 'Logs paused. Click play to resume.'}
-              </Typography>
-            )}
+        )}
+        {!error && lineCount === 0 && (
+          <Box sx={{ p: 2 }}>
+            <Typography
+              sx={{
+                color: isDark ? '#8b949e' : '#6a737d',
+                fontStyle: 'italic',
+                fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace',
+                fontSize: '0.8rem',
+              }}
+            >
+              {isStreaming ? 'Waiting for logs...' : 'Logs paused. Click play to resume.'}
+            </Typography>
           </Box>
         )}
+        {/* Always render pre element but hide when empty - avoid React reconciliation issues */}
+        <Box
+          component="pre"
+          ref={logContentRef}
+          sx={{
+            m: 0,
+            p: 2,
+            fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace',
+            fontSize: '0.8rem',
+            lineHeight: 1.5,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all',
+            color: isDark ? '#e6edf3' : '#d4d4d4',
+            minHeight: lineCount > 0 ? '100%' : 0,
+            display: lineCount > 0 ? 'block' : 'none',
+            // Performance: use GPU acceleration
+            transform: 'translateZ(0)',
+          }}
+        />
       </Box>
     </Paper>
   );

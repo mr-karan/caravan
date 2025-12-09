@@ -470,7 +470,18 @@ export default function GlobalSearch() {
   return (
     <>
       <Tooltip title={`Search ${hasMultipleClusters ? 'all clusters' : ''} (⌘K)`}>
-        <IconButton onClick={() => setOpen(true)} color="inherit" size="small">
+        <IconButton
+          onClick={() => setOpen(true)}
+          size="small"
+          sx={{
+            width: 36,
+            height: 36,
+            color: theme.palette.navbar?.color ?? theme.palette.text.primary,
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.primary.main, 0.08),
+            },
+          }}
+        >
           <Icon icon="mdi:magnify" width={20} />
         </IconButton>
       </Tooltip>

@@ -873,6 +873,10 @@ export default function ClusterRail({ onAddCluster }: ClusterRailProps) {
     navigate('/clusters');
   };
 
+  const handleAddCluster = () => {
+    navigate('/clusters?add=true');
+  };
+
   const handleToggleGroup = (groupId: string) => {
     toggleGroupCollapsed(groupId);
     setGroups(getClusterGroups());
@@ -1081,7 +1085,7 @@ export default function ClusterRail({ onAddCluster }: ClusterRailProps) {
         {/* Add cluster button */}
         <Tooltip title="Add Cluster" placement="right" arrow>
           <IconButton
-            onClick={onAddCluster || handleGoToHome}
+            onClick={onAddCluster || handleAddCluster}
             sx={{
               p: 1,
               borderRadius: 2,

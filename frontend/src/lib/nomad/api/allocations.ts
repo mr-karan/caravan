@@ -47,6 +47,8 @@ export function stopAllocation(allocId: string): Promise<void> {
 
 /**
  * Get allocation resource usage stats
+ * The backend proxies this to Nomad's /v1/client/allocation/{id}/stats via the Go SDK
+ * @see https://github.com/hashicorp/nomad/blob/main/api/allocations.go
  */
 export function getAllocationStats(allocId: string): Promise<AllocResourceUsage> {
   return get(`/v1/allocation/${encodeURIComponent(allocId)}/stats`);

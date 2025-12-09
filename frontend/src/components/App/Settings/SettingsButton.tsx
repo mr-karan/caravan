@@ -1,29 +1,32 @@
+import { Icon } from '@iconify/react';
+import { alpha, IconButton, Tooltip, useTheme } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { getCluster } from '../../../lib/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
-import ActionButton from '../../common/ActionButton';
 
 export default function SettingsButton(props: { onClickExtra?: () => void }) {
   const { onClickExtra } = props;
-  
+  const theme = useTheme();
   const navigate = useNavigate();
-  const clusterName = getCluster();
-
-  if (clusterName === null) {
-    return null;
-  }
 
   return (
-    <ActionButton
-      icon="mdi:cog"
-      description="Settings"
-      iconButtonProps={{
-        color: 'inherit',
-      }}
-      onClick={() => {
-        navigate(createRouteURL('settingsCluster', { cluster: clusterName }));
-        onClickExtra && onClickExtra();
-      }}
-    />
+    <Tooltip title="Settings">
+      <IconButton
+        size="small"
+        onClick={() => {
+          navigate(createRouteURL('settings'));
+          onClickExtra?.();
+        }}
+        sx={{
+          width: 36,
+          height: 36,
+          color: theme.palette.navbar.color ?? theme.palette.text.primary,
+          '&:hover': {
+            backgroundColor: alpha(theme.palette.primary.main, 0.08),
+          },
+        }}
+      >
+        <Icon icon="mdi:cog-outline" width={20} />
+      </IconButton>
+    </Tooltip>
   );
 }

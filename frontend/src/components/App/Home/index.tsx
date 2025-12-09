@@ -7,16 +7,24 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
+  FormControlLabel,
   Grid,
   IconButton,
   InputAdornment,
+  InputLabel,
   LinearProgress,
+  MenuItem,
   Paper,
+  Radio,
+  RadioGroup,
+  Select,
   Skeleton,
   Step,
   StepLabel,
@@ -28,10 +36,15 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { hasClusterToken, removeCluster as removeStoredCluster, saveCluster } from '../../../lib/clusterStorage';
+import {
+  listOIDCAuthMethods,
+  startOIDCLogin,
+  AuthMethod,
+} from '../../../lib/nomad/api/oidc';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
@@ -52,6 +65,8 @@ interface AddClusterFormData {
   region: string;
   namespace: string;
   token: string;
+  authType: 'token' | 'oidc';
+  oidcMethod?: string;
 }
 
 interface ClusterHealth {
@@ -137,7 +152,7 @@ async function fetchClusterHealth(clusterName: string): Promise<ClusterHealth> {
   }
 }
 
-// Improved Add Cluster Dialog with stepper
+// Improved Add Cluster Dialog with stepper and OIDC support
 function AddClusterDialog({
   open,
   onClose,
@@ -156,11 +171,47 @@ function AddClusterDialog({
     region: '',
     namespace: '',
     token: '',
+    authType: 'token',
+    oidcMethod: '',
   });
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+  const [oidcMethods, setOidcMethods] = useState<AuthMethod[]>([]);
+  const [loadingOidc, setLoadingOidc] = useState(false);
+  const [oidcStatus, setOidcStatus] = useState<'idle' | 'waiting' | 'success' | 'error'>('idle');
 
   const steps = ['Connection', 'Authentication', 'Confirm'];
+
+  // Listen for OIDC callback messages
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'oidc-callback-success') {
+        setOidcStatus('success');
+        setTestResult('success');
+        setActiveStep(2);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  // Fetch OIDC methods when cluster is added
+  const fetchOidcMethods = useCallback(async (clusterName: string) => {
+    setLoadingOidc(true);
+    try {
+      const methods = await listOIDCAuthMethods(clusterName);
+      setOidcMethods(methods);
+      if (methods.length > 0) {
+        setFormData(prev => ({ ...prev, oidcMethod: methods[0].name }));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch OIDC methods:', err);
+      setOidcMethods([]);
+    }
+    setLoadingOidc(false);
+  }, []);
 
   const handleNext = async () => {
     setError(null);
@@ -181,12 +232,10 @@ function AddClusterDialog({
         setError('Invalid address format. Use a valid URL (e.g., https://nomad.example.com)');
         return;
       }
-      setActiveStep(1);
-    } else if (activeStep === 1) {
-      // Test connection and validate token
+
+      // Add the cluster first so we can check auth methods
       setLoading(true);
       try {
-        // First add the cluster (without token - we'll validate token separately via login)
         const addClusterData = {
           name: formData.name,
           address: formData.address,
@@ -203,10 +252,31 @@ function AddClusterDialog({
           throw new Error('Failed to add cluster');
         }
 
+        // Fetch OIDC methods for this cluster
+        await fetchOidcMethods(formData.name);
+        setActiveStep(1);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+      setLoading(false);
+    } else if (activeStep === 1) {
+      // Skip to confirm if using OIDC (auth happens via popup)
+      if (formData.authType === 'oidc') {
+        if (oidcStatus === 'success') {
+          setActiveStep(2);
+          return;
+        }
+        setError('Please complete OIDC authentication first');
+        return;
+      }
+
+      // Test connection and validate token
+      setLoading(true);
+      try {
         // If token provided, validate it via login endpoint
         if (formData.token.trim()) {
           const loginResponse = await fetch(
-            `/api/clusters/${encodeURIComponent(formData.name)}/v1/auth/login`,
+            `/api/clusters/${encodeURIComponent(formData.name)}/auth/login`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -264,14 +334,50 @@ function AddClusterDialog({
     setActiveStep(prev => prev - 1);
     setError(null);
     setTestResult(null);
+    setOidcStatus('idle');
   };
 
   const handleClose = () => {
-    setFormData({ name: '', address: '', region: '', namespace: '', token: '' });
+    setFormData({ name: '', address: '', region: '', namespace: '', token: '', authType: 'token', oidcMethod: '' });
     setError(null);
     setActiveStep(0);
     setTestResult(null);
+    setOidcStatus('idle');
+    setOidcMethods([]);
     onClose();
+  };
+
+  const handleOidcLogin = async () => {
+    if (!formData.oidcMethod) {
+      setError('Please select an authentication method');
+      return;
+    }
+
+    setOidcStatus('waiting');
+    setError(null);
+
+    try {
+      const popup = await startOIDCLogin(formData.name, formData.oidcMethod);
+      if (!popup) {
+        setError('Failed to open login window. Please allow popups for this site.');
+        setOidcStatus('error');
+        return;
+      }
+
+      // Poll for popup close (user might cancel)
+      const pollTimer = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(pollTimer);
+          if (oidcStatus === 'waiting') {
+            // Popup closed without success message
+            setOidcStatus('idle');
+          }
+        }
+      }, 500);
+    } catch (err) {
+      setError((err as Error).message);
+      setOidcStatus('error');
+    }
   };
 
   return (
@@ -384,29 +490,126 @@ function AddClusterDialog({
                 </Typography>
               </Box>
               <Typography variant="body2" color="text.secondary">
-                If your Nomad cluster has ACL enabled, provide a token with appropriate permissions.
-                Leave empty if ACL is disabled.
+                Choose how to authenticate with this Nomad cluster.
               </Typography>
             </Paper>
 
-            <TextField
-              label="ACL Token"
-              value={formData.token}
-              onChange={e => setFormData({ ...formData, token: e.target.value })}
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              fullWidth
-              type="password"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Icon icon="mdi:key" width={20} />
-                  </InputAdornment>
-                ),
-              }}
-              helperText="Your Nomad ACL token (optional if ACL is disabled)"
-            />
+            <FormControl>
+              <RadioGroup
+                value={formData.authType}
+                onChange={e => setFormData({ ...formData, authType: e.target.value as 'token' | 'oidc' })}
+              >
+                <FormControlLabel
+                  value="token"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">ACL Token</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Use a Nomad ACL token directly
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ mb: 1, alignItems: 'flex-start', '& .MuiRadio-root': { pt: 0.5 } }}
+                />
+                <FormControlLabel
+                  value="oidc"
+                  control={<Radio />}
+                  disabled={oidcMethods.length === 0 && !loadingOidc}
+                  label={
+                    <Box>
+                      <Typography variant="body1">
+                        SSO / OIDC
+                        {loadingOidc && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {oidcMethods.length > 0
+                          ? `Sign in with ${oidcMethods.map(m => m.name).join(', ')}`
+                          : loadingOidc
+                          ? 'Checking available methods...'
+                          : 'No OIDC methods configured on this cluster'}
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ alignItems: 'flex-start', '& .MuiRadio-root': { pt: 0.5 } }}
+                />
+              </RadioGroup>
+            </FormControl>
 
-            {testResult === 'success' && (
+            {formData.authType === 'token' && (
+              <TextField
+                label="ACL Token"
+                value={formData.token}
+                onChange={e => setFormData({ ...formData, token: e.target.value })}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                fullWidth
+                type="password"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Icon icon="mdi:key" width={20} />
+                    </InputAdornment>
+                  ),
+                }}
+                helperText="Your Nomad ACL token (optional if ACL is disabled)"
+              />
+            )}
+
+            {formData.authType === 'oidc' && oidcMethods.length > 0 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {oidcMethods.length > 1 && (
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Authentication Method</InputLabel>
+                    <Select
+                      value={formData.oidcMethod || ''}
+                      label="Authentication Method"
+                      onChange={e => setFormData({ ...formData, oidcMethod: e.target.value })}
+                    >
+                      {oidcMethods.map(method => (
+                        <MenuItem key={method.name} value={method.name}>
+                          {method.name}
+                          {method.default && (
+                            <Chip size="small" label="default" sx={{ ml: 1, height: 18 }} />
+                          )}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={handleOidcLogin}
+                  disabled={oidcStatus === 'waiting'}
+                  startIcon={
+                    oidcStatus === 'waiting' ? (
+                      <CircularProgress size={20} color="inherit" />
+                    ) : oidcStatus === 'success' ? (
+                      <Icon icon="mdi:check-circle" />
+                    ) : (
+                      <Icon icon="mdi:login" />
+                    )
+                  }
+                  color={oidcStatus === 'success' ? 'success' : 'primary'}
+                  sx={{ py: 1.5 }}
+                >
+                  {oidcStatus === 'waiting'
+                    ? 'Waiting for authentication...'
+                    : oidcStatus === 'success'
+                    ? 'Authenticated!'
+                    : `Sign in with ${formData.oidcMethod || oidcMethods[0]?.name || 'SSO'}`}
+                </Button>
+
+                {oidcStatus === 'waiting' && (
+                  <Alert severity="info">
+                    Complete the authentication in the popup window. This dialog will update automatically.
+                  </Alert>
+                )}
+              </Box>
+            )}
+
+            {testResult === 'success' && formData.authType === 'token' && (
               <Alert severity="success" icon={<Icon icon="mdi:check-circle" />}>
                 Successfully connected to cluster!
               </Alert>
@@ -417,7 +620,9 @@ function AddClusterDialog({
         {activeStep === 2 && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Alert severity="success" icon={<Icon icon="mdi:check-circle" />}>
-              Connection verified! Ready to add cluster.
+              {formData.authType === 'oidc'
+                ? 'OIDC authentication successful! Ready to add cluster.'
+                : 'Connection verified! Ready to add cluster.'}
             </Alert>
 
             <Paper variant="outlined" sx={{ p: 2 }}>
@@ -437,7 +642,11 @@ function AddClusterDialog({
                 )}
                 <Typography variant="body2" color="text.secondary">Auth:</Typography>
                 <Typography variant="body2">
-                  {formData.token ? 'ACL Token configured' : 'No authentication'}
+                  {formData.authType === 'oidc'
+                    ? `OIDC (${formData.oidcMethod})`
+                    : formData.token
+                    ? 'ACL Token configured'
+                    : 'No authentication'}
                 </Typography>
               </Box>
             </Paper>
@@ -458,7 +667,7 @@ function AddClusterDialog({
         <Button
           onClick={handleNext}
           variant="contained"
-          disabled={loading}
+          disabled={loading || (activeStep === 1 && formData.authType === 'oidc' && oidcStatus !== 'success')}
           startIcon={loading ? undefined : activeStep === 2 ? <Icon icon="mdi:check" /> : <Icon icon="mdi:arrow-right" />}
         >
           {loading ? 'Please wait...' : activeStep === 2 ? 'Add Cluster' : 'Next'}
@@ -849,6 +1058,7 @@ export default function Home() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const state = location.state as LocationState | null;
   const theme = useTheme();
   const clusters = useTypedSelector(state => state.config.clusters) || {};
@@ -863,6 +1073,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   const [clusterError, setClusterError] = useState(location.state?.clusterError);
+
+  // Check for ?add=true query param to auto-open add dialog
+  useEffect(() => {
+    if (searchParams.get('add') === 'true') {
+      setAddDialogOpen(true);
+      // Remove the query param
+      searchParams.delete('add');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const clusterList = useMemo(() => {
     return Object.entries(clusters)

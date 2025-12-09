@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react';
 import {
   Alert,
+  alpha,
   Box,
   Button,
   Card,
@@ -8,22 +9,33 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  FormControl,
   IconButton,
   InputAdornment,
+  InputLabel,
   Link,
+  MenuItem,
+  Select,
   TextField,
   Typography,
+  useTheme,
 } from '@mui/material';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { login } from '../../../lib/auth';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../../redux/hooks';
 import ClusterAvatar from '../../common/ClusterAvatar';
+import {
+  listOIDCAuthMethods,
+  startOIDCLogin,
+  AuthMethod,
+} from '../../../lib/nomad/api/oidc';
 
 export default function Login() {
   const { cluster } = useParams<{ cluster: string }>();
   const navigate = useNavigate();
+  const theme = useTheme();
   
   const clusters = useTypedSelector(state => state.config.clusters) || {};
 
@@ -31,9 +43,55 @@ export default function Login() {
   const [showToken, setShowToken] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // OIDC state
+  const [oidcMethods, setOidcMethods] = useState<AuthMethod[]>([]);
+  const [selectedOidcMethod, setSelectedOidcMethod] = useState('');
+  const [loadingOidc, setLoadingOidc] = useState(true);
+  const [oidcStatus, setOidcStatus] = useState<'idle' | 'waiting' | 'success' | 'error'>('idle');
 
   const clusterInfo = cluster ? clusters[cluster] : undefined;
   const serverAddress = clusterInfo?.server || '';
+
+  // Fetch OIDC methods on mount
+  const fetchOidcMethods = useCallback(async () => {
+    if (!cluster) return;
+    setLoadingOidc(true);
+    try {
+      const methods = await listOIDCAuthMethods(cluster);
+      setOidcMethods(methods);
+      if (methods.length > 0) {
+        // Select default method or first one
+        const defaultMethod = methods.find(m => m.default) || methods[0];
+        setSelectedOidcMethod(defaultMethod.name);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch OIDC methods:', err);
+      setOidcMethods([]);
+    }
+    setLoadingOidc(false);
+  }, [cluster]);
+
+  useEffect(() => {
+    fetchOidcMethods();
+  }, [fetchOidcMethods]);
+
+  // Listen for OIDC callback messages
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'oidc-callback-success' && event.data.cluster === cluster) {
+        setOidcStatus('success');
+        // Redirect to cluster dashboard after a brief delay
+        setTimeout(() => {
+          navigate(createRouteURL('nomadCluster', { cluster: cluster || '' }));
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [cluster, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +112,39 @@ export default function Login() {
       setError(err.message || 'Failed to authenticate. Please check your token.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOidcLogin = async () => {
+    if (!selectedOidcMethod || !cluster) {
+      setError('Please select an authentication method');
+      return;
+    }
+
+    setOidcStatus('waiting');
+    setError(null);
+
+    try {
+      const popup = await startOIDCLogin(cluster, selectedOidcMethod);
+      if (!popup) {
+        setError('Failed to open login window. Please allow popups for this site.');
+        setOidcStatus('error');
+        return;
+      }
+
+      // Poll for popup close (user might cancel)
+      const pollTimer = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(pollTimer);
+          if (oidcStatus === 'waiting') {
+            // Popup closed without success message
+            setOidcStatus('idle');
+          }
+        }
+      }, 500);
+    } catch (err) {
+      setError((err as Error).message);
+      setOidcStatus('error');
     }
   };
 
@@ -153,16 +244,83 @@ export default function Login() {
             </Box>
           )}
 
-          {/* Login Form */}
-          <form onSubmit={handleLogin}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Enter your Nomad ACL token to access this cluster.
-            </Typography>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
 
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-              </Alert>
+          {/* OIDC Login Section */}
+          {oidcMethods.length > 0 && (
+            <>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Sign in with your organization's SSO provider.
+                </Typography>
+
+                {oidcMethods.length > 1 && (
+                  <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                    <InputLabel>Authentication Method</InputLabel>
+                    <Select
+                      value={selectedOidcMethod}
+                      label="Authentication Method"
+                      onChange={e => setSelectedOidcMethod(e.target.value)}
+                    >
+                      {oidcMethods.map(method => (
+                        <MenuItem key={method.name} value={method.name}>
+                          {method.name}
+                          {method.default && (
+                            <Chip size="small" label="default" sx={{ ml: 1, height: 18 }} />
+                          )}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="large"
+                  onClick={handleOidcLogin}
+                  disabled={oidcStatus === 'waiting' || loading}
+                  startIcon={
+                    oidcStatus === 'waiting' ? (
+                      <CircularProgress size={20} color="inherit" />
+                    ) : oidcStatus === 'success' ? (
+                      <Icon icon="mdi:check-circle" />
+                    ) : (
+                      <Icon icon="mdi:login" />
+                    )
+                  }
+                  color={oidcStatus === 'success' ? 'success' : 'primary'}
+                >
+                  {oidcStatus === 'waiting'
+                    ? 'Waiting for authentication...'
+                    : oidcStatus === 'success'
+                    ? 'Authenticated! Redirecting...'
+                    : `Sign in with ${selectedOidcMethod || 'SSO'}`}
+                </Button>
+
+                {oidcStatus === 'waiting' && (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    Complete the authentication in the popup window.
+                  </Alert>
+                )}
+              </Box>
+
+              <Divider sx={{ my: 3 }}>
+                <Chip label="or use token" size="small" />
+              </Divider>
+            </>
+          )}
+
+          {/* Token Login Form */}
+          <form onSubmit={handleLogin}>
+            {oidcMethods.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Enter your Nomad ACL token to access this cluster.
+              </Typography>
             )}
 
             <TextField
@@ -172,9 +330,9 @@ export default function Login() {
               value={token}
               onChange={e => setToken(e.target.value)}
               placeholder="Enter your Nomad ACL token"
-              autoFocus
-              disabled={loading}
-              sx={{ mb: 3 }}
+              autoFocus={oidcMethods.length === 0}
+              disabled={loading || oidcStatus === 'waiting'}
+              sx={{ mb: 2 }}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -193,16 +351,16 @@ export default function Login() {
 
             <Button
               type="submit"
-              variant="contained"
+              variant={oidcMethods.length > 0 ? 'outlined' : 'contained'}
               fullWidth
               size="large"
-              disabled={loading || !token.trim()}
+              disabled={loading || !token.trim() || oidcStatus === 'waiting'}
               sx={{ mb: 2 }}
             >
               {loading ? (
                 <CircularProgress size={24} color="inherit" />
               ) : (
-                'Sign In'
+                'Sign In with Token'
               )}
             </Button>
 
@@ -212,15 +370,15 @@ export default function Login() {
             </Divider>
 
             <Button
-              variant="outlined"
+              variant="text"
               fullWidth
               size="large"
               onClick={handleSkipAuth}
-              disabled={loading}
+              disabled={loading || oidcStatus === 'waiting'}
               startIcon={<Icon icon="mdi:arrow-right" />}
               sx={{ mb: 2 }}
             >
-              Continue without token
+              Continue without authentication
             </Button>
 
             <Typography variant="caption" color="text.secondary" display="block" textAlign="center" sx={{ mb: 2 }}>
@@ -235,7 +393,7 @@ export default function Login() {
           {/* Help Text */}
           <Box sx={{ mt: 3, pt: 3, borderTop: 1, borderColor: 'divider' }}>
             <Typography variant="body2" color="text.secondary">
-              Need a token?{' '}
+              Need help?{' '}
               <Link
                 href="https://developer.hashicorp.com/nomad/tutorials/access-control/access-control-tokens"
                 target="_blank"
