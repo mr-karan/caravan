@@ -124,35 +124,30 @@ func serveWithNoCacheHeader(fs http.Handler) http.HandlerFunc {
 	}
 }
 
-// requestLogger is a middleware that logs all incoming requests
-func requestLogger(next http.Handler) http.Handler {
+// requestLogger is a middleware that logs requests and records metrics
+func requestLogger(next http.Handler, devMode bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
 		// Create a response wrapper to capture status code
 		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
-		// Log request
-		logger.Log(logger.LevelInfo, map[string]string{
-			"method": r.Method,
-			"path":   r.URL.Path,
-			"query":  r.URL.RawQuery,
-		}, nil, "Incoming request")
-
 		// Call the next handler
 		next.ServeHTTP(rw, r)
 
-		// Log response and record metrics
+		// Record metrics (always)
 		duration := time.Since(start)
-		logger.Log(logger.LevelInfo, map[string]string{
-			"method":   r.Method,
-			"path":     r.URL.Path,
-			"status":   fmt.Sprintf("%d", rw.statusCode),
-			"duration": duration.String(),
-		}, nil, "Request completed")
-
-		// Record HTTP metrics
 		telemetry.RecordHTTPRequest(r.Method, r.URL.Path, rw.statusCode, duration.Seconds())
+
+		// Only log requests in dev mode
+		if devMode {
+			logger.Log(logger.LevelInfo, map[string]string{
+				"method":   r.Method,
+				"path":     r.URL.Path,
+				"status":   fmt.Sprintf("%d", rw.statusCode),
+				"duration": duration.String(),
+			}, nil, "")
+		}
 	})
 }
 
@@ -394,12 +389,15 @@ func createCaravanHandler(config *CaravanConfig) http.Handler {
 	mux.Handle("GET /metrics", telemetry.MetricsHandler())
 
 	// Serve static files (SPA) - this is a catch-all, so it must be registered last
-	// In Go 1.22+, "/" only matches exact root path. Use "/{path...}" for catch-all.
+	// In Go 1.22+, "/{path...}" matches both "/" and all sub-paths
 	if config.StaticDir != "" {
-		logger.Log(logger.LevelInfo, nil, nil, "Serving static files from: "+config.StaticDir)
+		// Serve from filesystem directory
 		spaHandler := spa.GetHandler(config.BaseURL, config.StaticDir)
 		mux.Handle("/{path...}", spaHandler)
-		mux.Handle("/", spaHandler) // Also handle exact root
+	} else if spa.UseEmbeddedFiles {
+		// Serve from embedded files
+		spaHandler := spa.NewEmbeddedHandler(spa.StaticFilesEmbed, "index.html", config.BaseURL)
+		mux.Handle("/{path...}", spaHandler)
 	}
 
 	// CORS handling using rs/cors - cleaner API
@@ -429,8 +427,8 @@ func createCaravanHandler(config *CaravanConfig) http.Handler {
 		AllowCredentials: true,
 	})
 
-	// Apply request logging and CORS
-	return c.Handler(requestLogger(mux))
+	// Apply request logging (verbose in dev mode) and CORS
+	return c.Handler(requestLogger(mux, config.DevMode))
 }
 
 // addClusterSetupRoute adds routes for dynamic cluster management under /api prefix
