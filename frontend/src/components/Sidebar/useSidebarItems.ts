@@ -90,34 +90,16 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             label: 'Jobs',
           },
           {
-            name: 'nomadAllocations',
-            label: 'Allocations',
+            name: 'nomadServices',
+            label: 'Services',
+          },
+          {
+            name: 'nomadVariables',
+            label: 'Variables',
           },
           {
             name: 'nomadEvaluations',
             label: 'Evaluations',
-          },
-        ],
-      },
-      {
-        name: 'network',
-        label: 'Network',
-        icon: 'mdi:folder-network-outline',
-        subList: [
-          {
-            name: 'nomadServices',
-            label: 'Services',
-          },
-        ],
-      },
-      {
-        name: 'config',
-        label: 'Configuration',
-        icon: 'mdi:format-list-checks',
-        subList: [
-          {
-            name: 'nomadVariables',
-            label: 'Variables',
           },
         ],
       },

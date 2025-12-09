@@ -6,7 +6,6 @@ import { DefaultSidebars } from '../../components/Sidebar';
 const ClusterOverview = React.lazy(() => import('../../components/nomad/cluster/ClusterOverview'));
 const JobList = React.lazy(() => import('../../components/nomad/job/JobList'));
 const JobDetails = React.lazy(() => import('../../components/nomad/job/JobDetails'));
-const AllocationList = React.lazy(() => import('../../components/nomad/allocation/AllocationList'));
 const AllocationDetails = React.lazy(() => import('../../components/nomad/allocation/AllocationDetails'));
 const NodeList = React.lazy(() => import('../../components/nomad/node/NodeList'));
 const NodeDetails = React.lazy(() => import('../../components/nomad/node/NodeDetails'));
@@ -48,23 +47,12 @@ export const nomadRoutes: { [routeName: string]: Route } = {
     ),
   },
 
-  // Allocations
-  nomadAllocations: {
-    path: '/allocations',
-    exact: true,
-    name: 'Allocations',
-    sidebar: 'nomadAllocations',
-    component: () => (
-      <React.Suspense fallback={<div>Loading...</div>}>
-        <AllocationList />
-      </React.Suspense>
-    ),
-  },
+  // Allocations (accessed via Jobs)
   nomadAllocation: {
     path: '/allocations/:id',
     exact: true,
     name: 'Allocation',
-    sidebar: 'nomadAllocations',
+    sidebar: 'nomadJobs',
     component: () => (
       <React.Suspense fallback={<div>Loading...</div>}>
         <AllocationDetails />

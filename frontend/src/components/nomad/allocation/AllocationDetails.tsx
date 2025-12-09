@@ -5,18 +5,17 @@ import {
   alpha,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
-  Divider,
-  Grid,
+  Collapse,
   IconButton,
+  InputAdornment,
   LinearProgress,
   Link,
   Paper,
   Skeleton,
   Tab,
   Tabs,
+  TextField,
   Tooltip,
   Typography,
   useTheme,
@@ -33,7 +32,7 @@ import { DateLabel } from '../../common/Label';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import TaskLogs from './TaskLogs';
 import TaskExec from './TaskExec';
-import { StatusChip } from '../statusStyles';
+import { MinimalStatus, minimalStatusColors, getStatusCategory } from '../statusStyles';
 
 // Stats polling interval in milliseconds
 const STATS_POLL_INTERVAL = 3000;
@@ -47,100 +46,80 @@ interface TabPanelProps {
 function TabPanel({ children, value, index, ...other }: TabPanelProps) {
   return (
     <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
     </div>
   );
 }
 
-// Resource usage card with progress bar
-function ResourceCard({
-  icon,
+// Compact stat item
+function StatItem({
   label,
   value,
-  total,
   unit,
-  color,
   percent,
+  color,
 }: {
-  icon: string;
   label: string;
-  value: number;
-  total?: number;
-  unit: string;
-  color: string;
+  value: number | string;
+  unit?: string;
   percent?: number;
+  color?: string;
 }) {
   const theme = useTheme();
-  const displayPercent = percent ?? (total ? Math.min((value / total) * 100, 100) : 0);
-
-  const formatValue = (v: number) => {
-    if (v >= 1024) return `${(v / 1024).toFixed(1)} GB`;
-    return `${v.toFixed(1)} ${unit}`;
-  };
-
   return (
-    <Card
-      elevation={0}
-      sx={{
-        border: `1px solid ${theme.palette.divider}`,
-        borderRadius: 2,
-        height: '100%',
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          borderColor: color,
-          boxShadow: `0 4px 12px ${alpha(color, 0.15)}`,
-        },
-      }}
-    >
-      <CardContent sx={{ p: 2.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 1.5,
-              backgroundColor: alpha(color, 0.1),
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Icon icon={icon} width={22} color={color} />
-          </Box>
-          <Typography variant="body2" color="text.secondary" fontWeight={500}>
-            {label}
-          </Typography>
-        </Box>
-
-        <Typography variant="h5" fontWeight={600} sx={{ mb: 1 }}>
-          {formatValue(value)}
+    <Box sx={{ minWidth: 100 }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: 'text.secondary',
+          fontSize: '0.65rem',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          display: 'block',
+          mb: 0.25,
+        }}
+      >
+        {label}
+      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+        <Typography
+          sx={{
+            fontSize: '1.125rem',
+            fontWeight: 600,
+            color: color || 'text.primary',
+            lineHeight: 1.2,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {typeof value === 'number' ? value.toFixed(1) : value}
         </Typography>
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <LinearProgress
-            variant="determinate"
-            value={displayPercent}
-            sx={{
-              flex: 1,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: alpha(color, 0.1),
-              '& .MuiLinearProgress-bar': {
-                backgroundColor: displayPercent > 80 ? theme.palette.error.main : color,
-                borderRadius: 3,
-              },
-            }}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 40 }}>
-            {displayPercent.toFixed(0)}%
+        {unit && (
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+            {unit}
           </Typography>
-        </Box>
-      </CardContent>
-    </Card>
+        )}
+      </Box>
+      {percent !== undefined && (
+        <LinearProgress
+          variant="determinate"
+          value={Math.min(percent, 100)}
+          sx={{
+            mt: 0.5,
+            height: 3,
+            borderRadius: 1.5,
+            backgroundColor: alpha(theme.palette.divider, 0.5),
+            '& .MuiLinearProgress-bar': {
+              borderRadius: 1.5,
+              backgroundColor: percent > 80 ? theme.palette.error.main : color || theme.palette.primary.main,
+            },
+          }}
+        />
+      )}
+    </Box>
   );
 }
 
-// Detail row component
+// Compact detail row
 function DetailRow({
   label,
   value,
@@ -156,29 +135,24 @@ function DetailRow({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        py: 1.5,
+        py: 0.75,
         borderBottom: '1px solid',
         borderColor: 'divider',
         '&:last-child': { borderBottom: 'none' },
       }}
     >
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
         {label}
       </Typography>
-      <Box
-        sx={{
-          fontSize: '0.875rem',
-          ...(mono ? { fontFamily: 'monospace', fontSize: '0.8rem' } : {}),
-        }}
-      >
+      <Box sx={{ fontSize: '0.75rem', ...(mono ? { fontFamily: 'monospace', fontSize: '0.7rem' } : {}) }}>
         {value}
       </Box>
     </Box>
   );
 }
 
-// Task card component
-function TaskCard({
+// Compact task row
+function TaskRow({
   task,
   onRestart,
   onViewLogs,
@@ -190,212 +164,125 @@ function TaskCard({
   onExec: () => void;
 }) {
   const theme = useTheme();
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
+  const [expanded, setExpanded] = useState(false);
 
-  const stateColor =
-    task.State === 'running'
-      ? theme.palette.success.main
-      : task.State === 'pending'
-        ? theme.palette.warning.main
-        : task.State === 'dead' && !task.Failed
-          ? theme.palette.grey[500]
-          : theme.palette.error.main;
+  const statusColor = task.State === 'running' ? colors.success
+    : task.State === 'pending' ? colors.pending
+    : task.Failed ? colors.error
+    : colors.cancelled;
 
   const lastEvent = task.Events?.[task.Events.length - 1];
 
   return (
-    <Card
-      elevation={0}
-      sx={{
-        border: `1px solid ${theme.palette.divider}`,
-        borderRadius: 2,
-        overflow: 'hidden',
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          borderColor: stateColor,
-          boxShadow: `0 4px 12px ${alpha(stateColor, 0.1)}`,
-        },
-      }}
-    >
+    <Box sx={{ borderBottom: `1px solid ${theme.palette.divider}`, '&:last-child': { borderBottom: 'none' } }}>
+      {/* Main row */}
       <Box
         sx={{
-          p: 2,
-          backgroundColor: alpha(stateColor, 0.03),
-          borderBottom: `1px solid ${theme.palette.divider}`,
-          display: 'flex',
-          justifyContent: 'space-between',
+          display: 'grid',
+          gridTemplateColumns: '24px 1fr 100px 100px auto',
           alignItems: 'center',
+          gap: 2,
+          py: 1,
+          px: 1.5,
+          '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.02) },
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 1.5,
-              backgroundColor: alpha(stateColor, 0.1),
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: `2px solid ${alpha(stateColor, 0.3)}`,
-            }}
-          >
-            <Icon
-              icon={
-                task.State === 'running'
-                  ? 'mdi:play-circle'
-                  : task.State === 'pending'
-                    ? 'mdi:clock-outline'
-                    : 'mdi:stop-circle'
-              }
-              width={22}
-              color={stateColor}
-            />
-          </Box>
-          <Box>
-            <Typography variant="subtitle1" fontWeight={600}>
-              {task.name}
+        <IconButton size="small" onClick={() => setExpanded(!expanded)} sx={{ p: 0.25 }}>
+          <Icon icon={expanded ? 'mdi:chevron-down' : 'mdi:chevron-right'} width={16} color={theme.palette.text.secondary} />
+        </IconButton>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2" fontWeight={500}>{task.name}</Typography>
+          <MinimalStatus status={task.State} />
+          {task.Failed && (
+            <Typography variant="caption" sx={{ color: colors.error, fontSize: '0.65rem' }}>failed</Typography>
+          )}
+        </Box>
+        <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center' }}>
+          {task.Restarts} restart{task.Restarts !== 1 ? 's' : ''}
+        </Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center' }}>
+          {task.StartedAt ? <DateLabel date={new Date(task.StartedAt)} format="mini" /> : '—'}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Tooltip title="Logs">
+            <IconButton size="small" onClick={onViewLogs} sx={{ p: 0.5 }}>
+              <Icon icon="mdi:text-box-outline" width={16} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Terminal">
+            <IconButton size="small" onClick={onExec} sx={{ p: 0.5 }}>
+              <Icon icon="mdi:console" width={16} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Restart">
+            <IconButton size="small" onClick={onRestart} sx={{ p: 0.5 }} color="warning">
+              <Icon icon="mdi:restart" width={16} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* Expanded: Last event */}
+      <Collapse in={expanded}>
+        {lastEvent && (
+          <Box sx={{ px: 1.5, py: 1, pl: 5, backgroundColor: alpha(theme.palette.background.default, 0.5) }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', display: 'block', mb: 0.25 }}>
+              Last Event
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <StatusChip status={task.State} />
-              {task.Failed && (
-                <Chip
-                  size="small"
-                  label="Failed"
-                  sx={{
-                    backgroundColor: alpha(theme.palette.error.main, 0.1),
-                    color: theme.palette.error.main,
-                    fontWeight: 500,
-                    fontSize: '0.7rem',
-                  }}
-                />
+              <Typography variant="caption" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>
+                {lastEvent.Type}
+              </Typography>
+              {lastEvent.DisplayMessage && (
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+                  — {lastEvent.DisplayMessage}
+                </Typography>
               )}
             </Box>
           </Box>
-        </Box>
-
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="View Logs">
-            <IconButton size="small" onClick={onViewLogs}>
-              <Icon icon="mdi:text-box-outline" width={18} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Open Terminal">
-            <IconButton size="small" onClick={onExec}>
-              <Icon icon="mdi:console" width={18} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Restart Task">
-            <IconButton size="small" onClick={onRestart} color="warning">
-              <Icon icon="mdi:restart" width={18} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
-
-      <Box sx={{ p: 2 }}>
-        <Grid container spacing={2}>
-          <Grid size={6}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              Restarts
-            </Typography>
-            <Typography variant="body2" fontWeight={500}>
-              {task.Restarts}
-            </Typography>
-          </Grid>
-          <Grid size={6}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              Started
-            </Typography>
-            <Typography variant="body2" fontWeight={500}>
-              {task.StartedAt ? <DateLabel date={new Date(task.StartedAt)} /> : '—'}
-            </Typography>
-          </Grid>
-        </Grid>
-
-        {lastEvent && (
-          <Box
-            sx={{
-              mt: 2,
-              p: 1.5,
-              borderRadius: 1,
-              backgroundColor: alpha(theme.palette.background.default, 0.5),
-              border: `1px solid ${theme.palette.divider}`,
-            }}
-          >
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Last Event
-            </Typography>
-            <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
-              <strong>{lastEvent.Type}</strong>
-              {lastEvent.DisplayMessage && ` — ${lastEvent.DisplayMessage}`}
-            </Typography>
-          </Box>
         )}
-      </Box>
-    </Card>
+      </Collapse>
+    </Box>
   );
 }
 
-// Event timeline item
-function EventItem({ event, isLast }: { event: any; isLast: boolean }) {
+// Compact event item
+function EventItem({ event, taskName }: { event: any; taskName: string }) {
   const theme = useTheme();
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
 
   const typeColor =
-    event.Type === 'Started' || event.Type === 'Task Setup'
-      ? theme.palette.success.main
-      : event.Type === 'Terminated' || event.Type === 'Killing' || event.Type === 'Killed'
-        ? theme.palette.error.main
-        : event.Type === 'Restarting' || event.Type === 'Signaling'
-          ? theme.palette.warning.main
-          : theme.palette.info.main;
+    event.Type === 'Started' || event.Type === 'Task Setup' ? colors.success
+    : event.Type === 'Terminated' || event.Type === 'Killing' || event.Type === 'Killed' ? colors.error
+    : event.Type === 'Restarting' || event.Type === 'Signaling' ? colors.pending
+    : colors.default;
 
   return (
-    <Box sx={{ display: 'flex', gap: 2 }}>
-      {/* Timeline */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 20 }}>
-        <Box
-          sx={{
-            width: 10,
-            height: 10,
-            borderRadius: '50%',
-            backgroundColor: typeColor,
-          }}
-        />
-        {!isLast && (
-          <Box
-            sx={{
-              width: 2,
-              flex: 1,
-              backgroundColor: theme.palette.divider,
-              mt: 0.5,
-            }}
-          />
-        )}
-      </Box>
-
-      {/* Content */}
-      <Box sx={{ flex: 1, pb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-          <Chip
-            size="small"
-            label={event.Type}
-            sx={{
-              backgroundColor: alpha(typeColor, 0.1),
-              color: typeColor,
-              fontWeight: 500,
-              fontSize: '0.7rem',
-            }}
-          />
-          <Typography variant="caption" color="text.secondary">
-            <DateLabel date={new Date(event.Time / 1000000)} />
-          </Typography>
-        </Box>
-        {(event.DisplayMessage || event.Message) && (
-          <Typography variant="body2" color="text.secondary">
-            {event.DisplayMessage || event.Message}
-          </Typography>
-        )}
-      </Box>
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: '120px 80px 1fr',
+        gap: 2,
+        py: 0.75,
+        px: 1.5,
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        '&:last-child': { borderBottom: 'none' },
+        '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.02) },
+      }}
+    >
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+        {event.Time ? <DateLabel date={new Date(event.Time / 1000000)} format="mini" /> : '—'}
+      </Typography>
+      <Typography
+        variant="caption"
+        sx={{ color: typeColor, fontWeight: 500, fontSize: '0.7rem' }}
+      >
+        {event.Type}
+      </Typography>
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+        {event.DisplayMessage || event.Message || '—'}
+      </Typography>
     </Box>
   );
 }
@@ -411,11 +298,13 @@ export default function AllocationDetails() {
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [statsUpdatedAt, setStatsUpdatedAt] = useState<Date | null>(null);
   const statsIntervalRef = useRef<number | null>(null);
+  const [execCommand, setExecCommand] = useState('/bin/sh');
+  const [execKey, setExecKey] = useState(0);
 
-  // Load allocation data
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
+
   const loadAllocation = useCallback(async () => {
     if (!id) return;
-
     try {
       setLoading(true);
       const allocData = await getAllocation(id);
@@ -428,42 +317,32 @@ export default function AllocationDetails() {
     }
   }, [id]);
 
-  // Load stats (separate from allocation for polling)
   const loadStats = useCallback(async () => {
     if (!id) return;
-
     try {
       const statsData = await getAllocationStats(id);
       setStats(statsData);
       setStatsUpdatedAt(new Date());
     } catch (err) {
-      // Silently fail stats - allocation may be on an unreachable node
       console.warn('Failed to load allocation stats:', err);
     }
   }, [id]);
 
-  // Initial load
   useEffect(() => {
     loadAllocation();
     loadStats();
   }, [loadAllocation, loadStats]);
 
-  // Stats polling - only when allocation is running
   useEffect(() => {
-    // Clear existing interval
     if (statsIntervalRef.current) {
       clearInterval(statsIntervalRef.current);
       statsIntervalRef.current = null;
     }
-
-    // Only poll if allocation is running
     if (allocation?.ClientStatus === 'running' && id) {
       statsIntervalRef.current = window.setInterval(() => {
         loadStats();
       }, STATS_POLL_INTERVAL);
     }
-
-    // Cleanup on unmount
     return () => {
       if (statsIntervalRef.current) {
         clearInterval(statsIntervalRef.current);
@@ -471,7 +350,6 @@ export default function AllocationDetails() {
     };
   }, [allocation?.ClientStatus, id, loadStats]);
 
-  // Auto-select first task when allocation loads
   useEffect(() => {
     if (allocation?.TaskStates && !selectedTask) {
       const tasks = Object.keys(allocation.TaskStates);
@@ -481,11 +359,16 @@ export default function AllocationDetails() {
     }
   }, [allocation, selectedTask]);
 
+  const refreshAfterAction = useCallback(() => {
+    setTimeout(() => loadAllocation(), 500);
+    setTimeout(() => loadAllocation(), 2000);
+  }, [loadAllocation]);
+
   async function handleRestart(taskName?: string) {
     if (!id) return;
     try {
       await restartAllocation(id, taskName, !taskName);
-      loadAllocation();
+      refreshAfterAction();
     } catch (err) {
       console.error('Failed to restart allocation:', err);
     }
@@ -495,7 +378,7 @@ export default function AllocationDetails() {
     if (!id) return;
     try {
       await stopAllocation(id);
-      loadAllocation();
+      refreshAfterAction();
     } catch (err) {
       console.error('Failed to stop allocation:', err);
     }
@@ -507,21 +390,21 @@ export default function AllocationDetails() {
 
   if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Skeleton variant="rectangular" height={140} sx={{ borderRadius: 2, mb: 3 }} />
-        <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 2 }} />
+      <Box sx={{ p: 2 }}>
+        <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 1, mb: 2 }} />
+        <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Icon icon="mdi:alert-circle" width={48} color={theme.palette.error.main} />
-        <Typography color="error" sx={{ mt: 2 }}>
-          Error loading allocation: {error.message}
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Icon icon="mdi:alert-circle" width={36} color={theme.palette.error.main} />
+        <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+          {error.message}
         </Typography>
-        <Button onClick={loadAllocation} sx={{ mt: 2 }}>
+        <Button onClick={loadAllocation} size="small" sx={{ mt: 1 }}>
           Retry
         </Button>
       </Box>
@@ -530,316 +413,193 @@ export default function AllocationDetails() {
 
   if (!allocation) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Typography color="text.secondary">Allocation not found</Typography>
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">Allocation not found</Typography>
       </Box>
     );
   }
 
   const taskStates = allocation.TaskStates
-    ? Object.entries(allocation.TaskStates).map(([name, state]) => ({
-        name,
-        ...state,
-      }))
+    ? Object.entries(allocation.TaskStates).map(([name, state]) => ({ name, ...state }))
     : [];
 
-  const statusColor =
-    allocation.ClientStatus === 'running'
-      ? theme.palette.success.main
-      : allocation.ClientStatus === 'pending'
-        ? theme.palette.warning.main
-        : allocation.ClientStatus === 'complete'
-          ? theme.palette.info.main
-          : theme.palette.error.main;
+  const statusCategory = getStatusCategory(allocation.ClientStatus);
+  const statusColor = colors[statusCategory];
 
-  // Resource stats
   const cpuPercent = stats?.ResourceUsage?.CpuStats?.Percent || 0;
   const memoryMB = (stats?.ResourceUsage?.MemoryStats?.RSS || 0) / 1024 / 1024;
   const memoryMaxMB = (stats?.ResourceUsage?.MemoryStats?.MaxUsage || 0) / 1024 / 1024;
+  const runningTasks = taskStates.filter(t => t.State === 'running').length;
 
   return (
-    <Box>
-      {/* Header */}
-      <Paper
-        elevation={0}
+    <Box sx={{ pb: 3 }}>
+      {/* Compact Header */}
+      <Box
         sx={{
-          p: 3,
-          mb: 3,
-          borderRadius: 2,
-          border: `1px solid ${theme.palette.divider}`,
-          background: `linear-gradient(135deg, ${alpha(statusColor, 0.03)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          mb: 2,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'flex-start' }}>
-            <Box
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.75 }}>
+            <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+              {allocation.Name}
+            </Typography>
+            <MinimalStatus status={allocation.ClientStatus} />
+            <Typography
+              variant="caption"
               sx={{
-                width: 56,
-                height: 56,
-                borderRadius: 2,
-                backgroundColor: alpha(statusColor, 0.1),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: `2px solid ${alpha(statusColor, 0.3)}`,
+                fontFamily: 'monospace',
+                fontSize: '0.65rem',
+                color: 'text.disabled',
+                backgroundColor: alpha(theme.palette.text.primary, 0.05),
+                px: 0.75,
+                py: 0.25,
+                borderRadius: 0.5,
               }}
             >
-              <Icon
-                icon={
-                  allocation.ClientStatus === 'running'
-                    ? 'mdi:cube'
-                    : allocation.ClientStatus === 'pending'
-                      ? 'mdi:cube-outline'
-                      : 'mdi:cube-off'
-                }
-                width={28}
-                color={statusColor}
-              />
-            </Box>
-
-            <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-                <Typography variant="h5" fontWeight={600}>
-                  {allocation.Name}
-                </Typography>
-                <StatusChip status={allocation.ClientStatus} />
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1, flexWrap: 'wrap' }}>
-                <Link
-                  component={RouterLink}
-                  to={createRouteURL('nomadJob', {
-                    name: allocation.JobID,
-                    namespace: allocation.Namespace,
-                  })}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    fontSize: '0.875rem',
-                    textDecoration: 'none',
-                    '&:hover': { textDecoration: 'underline' },
-                  }}
-                >
-                  <Icon icon="mdi:briefcase-outline" width={16} />
-                  {allocation.JobID}
-                </Link>
-                <Divider orientation="vertical" flexItem />
-                <Link
-                  component={RouterLink}
-                  to={createRouteURL('nomadNode', { id: allocation.NodeID })}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    fontSize: '0.875rem',
-                    textDecoration: 'none',
-                    '&:hover': { textDecoration: 'underline' },
-                  }}
-                >
-                  <Icon icon="mdi:server" width={16} />
-                  {allocation.NodeName}
-                </Link>
-                <Divider orientation="vertical" flexItem />
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontFamily: 'monospace',
-                    fontSize: '0.75rem',
-                    color: 'text.disabled',
-                    backgroundColor: alpha(theme.palette.text.primary, 0.05),
-                    px: 1,
-                    py: 0.25,
-                    borderRadius: 1,
-                  }}
-                >
-                  {allocation.ID.substring(0, 8)}
-                </Typography>
-              </Box>
-            </Box>
+              {allocation.ID.substring(0, 8)}
+            </Typography>
           </Box>
-
-          {/* Actions */}
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Tooltip title="Refresh">
-              <IconButton onClick={loadAllocation} size="small">
-                <Icon icon="mdi:refresh" width={20} />
-              </IconButton>
-            </Tooltip>
-            <Button
-              onClick={() => handleRestart()}
-              variant="outlined"
-              size="small"
-              startIcon={<Icon icon="mdi:restart" width={18} />}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Link
+              component={RouterLink}
+              to={createRouteURL('nomadJob', { name: allocation.JobID, namespace: allocation.Namespace })}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.8rem' }}
             >
-              Restart All
-            </Button>
-            <Button
-              onClick={handleStop}
-              variant="outlined"
-              size="small"
-              color="error"
-              startIcon={<Icon icon="mdi:stop" width={18} />}
+              <Icon icon="mdi:briefcase-outline" width={14} />
+              {allocation.JobID}
+            </Link>
+            <Link
+              component={RouterLink}
+              to={createRouteURL('nomadNode', { id: allocation.NodeID })}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.8rem' }}
             >
-              Stop
-            </Button>
+              <Icon icon="mdi:server" width={14} />
+              {allocation.NodeName}
+            </Link>
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Icon icon="mdi:folder-outline" width={14} />
+              {allocation.Namespace}
+            </Typography>
           </Box>
         </Box>
-      </Paper>
 
-      {/* Resource stats */}
-      <Box sx={{ mb: 3 }}>
-        {statsUpdatedAt && allocation?.ClientStatus === 'running' && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              mb: 1.5,
-              color: 'text.secondary',
-            }}
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Tooltip title="Refresh">
+            <IconButton onClick={loadAllocation} size="small" sx={{ p: 0.75 }}>
+              <Icon icon="mdi:refresh" width={18} />
+            </IconButton>
+          </Tooltip>
+          <Button
+            onClick={() => handleRestart()}
+            size="small"
+            sx={{ minWidth: 'auto', px: 1.5, py: 0.5, fontSize: '0.75rem' }}
           >
+            Restart All
+          </Button>
+          <Button
+            onClick={handleStop}
+            size="small"
+            color="error"
+            sx={{ minWidth: 'auto', px: 1.5, py: 0.5, fontSize: '0.75rem' }}
+          >
+            Stop
+          </Button>
+        </Box>
+      </Box>
+
+      {/* Compact Stats Bar */}
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 4,
+          mb: 2,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          alignItems: 'flex-end',
+        }}
+      >
+        <StatItem
+          label="CPU"
+          value={cpuPercent}
+          unit="%"
+          percent={cpuPercent}
+          color={theme.palette.info.main}
+        />
+        <StatItem
+          label="Memory"
+          value={memoryMB}
+          unit="MB"
+          percent={memoryMaxMB > 0 ? (memoryMB / memoryMaxMB) * 100 : undefined}
+          color={theme.palette.success.main}
+        />
+        <StatItem
+          label="Tasks"
+          value={taskStates.length}
+          color={theme.palette.primary.main}
+        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography variant="caption" sx={{ color: colors.success, fontWeight: 500, fontSize: '0.8rem' }}>
+            {runningTasks}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+            running
+          </Typography>
+        </Box>
+        {statsUpdatedAt && allocation?.ClientStatus === 'running' && (
+          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box
               sx={{
-                width: 8,
-                height: 8,
+                width: 6,
+                height: 6,
                 borderRadius: '50%',
-                backgroundColor: theme.palette.success.main,
+                backgroundColor: colors.success,
                 animation: 'pulse 2s infinite',
-                '@keyframes pulse': {
-                  '0%': { opacity: 1 },
-                  '50%': { opacity: 0.4 },
-                  '100%': { opacity: 1 },
-                },
+                '@keyframes pulse': { '0%': { opacity: 1 }, '50%': { opacity: 0.4 }, '100%': { opacity: 1 } },
               }}
             />
-            <Typography variant="caption">
-              Live stats • Updated {statsUpdatedAt.toLocaleTimeString()}
+            <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>
+              Live
             </Typography>
           </Box>
         )}
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <ResourceCard
-              icon="mdi:chip"
-              label="CPU Usage"
-              value={cpuPercent}
-              unit="%"
-              color={theme.palette.info.main}
-              percent={Math.min(cpuPercent, 100)}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <ResourceCard
-              icon="mdi:memory"
-              label="Memory (RSS)"
-              value={memoryMB}
-              total={memoryMaxMB > 0 ? memoryMaxMB : undefined}
-              unit="MB"
-              color={theme.palette.success.main}
-              percent={memoryMaxMB > 0 ? Math.min((memoryMB / memoryMaxMB) * 100, 100) : undefined}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <Card
-              elevation={0}
-              sx={{
-                border: `1px solid ${theme.palette.divider}`,
-                borderRadius: 2,
-                height: '100%',
-              }}
-            >
-              <CardContent sx={{ p: 2.5 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 1.5,
-                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Icon icon="mdi:cube-outline" width={22} color={theme.palette.primary.main} />
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                    Tasks
-                  </Typography>
-                </Box>
-                <Typography variant="h5" fontWeight={600}>
-                  {taskStates.length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {taskStates.filter(t => t.State === 'running').length} running
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
       </Box>
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0 }}>
-        <Tabs value={tabValue} onChange={handleTabChange}>
-          <Tab
-            label="Overview"
-            icon={<Icon icon="mdi:view-dashboard-outline" width={18} />}
-            iconPosition="start"
-            sx={{ minHeight: 48 }}
-          />
-          <Tab
-            label={`Tasks (${taskStates.length})`}
-            icon={<Icon icon="mdi:cube-outline" width={18} />}
-            iconPosition="start"
-            sx={{ minHeight: 48 }}
-          />
-          <Tab
-            label="Logs"
-            icon={<Icon icon="mdi:text-box-outline" width={18} />}
-            iconPosition="start"
-            sx={{ minHeight: 48 }}
-          />
-          <Tab
-            label="Exec"
-            icon={<Icon icon="mdi:console" width={18} />}
-            iconPosition="start"
-            sx={{ minHeight: 48 }}
-          />
-          <Tab
-            label="Events"
-            icon={<Icon icon="mdi:history" width={18} />}
-            iconPosition="start"
-            sx={{ minHeight: 48 }}
-          />
+      {/* Tabs - compact */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0.5, px: 1.5, fontSize: '0.8rem' } }}
+        >
+          <Tab label="Overview" icon={<Icon icon="mdi:view-dashboard-outline" width={16} />} iconPosition="start" />
+          <Tab label={`Tasks (${taskStates.length})`} icon={<Icon icon="mdi:cube-outline" width={16} />} iconPosition="start" />
+          <Tab label="Logs" icon={<Icon icon="mdi:text-box-outline" width={16} />} iconPosition="start" />
+          <Tab label="Exec" icon={<Icon icon="mdi:console" width={16} />} iconPosition="start" />
+          <Tab label="Events" icon={<Icon icon="mdi:history" width={16} />} iconPosition="start" />
         </Tabs>
       </Box>
 
       {/* Overview Tab */}
       <TabPanel value={tabValue} index={0}>
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600 }}>
-              DETAILS
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1, display: 'block' }}>
+              Details
             </Typography>
-            <Paper
-              elevation={0}
-              sx={{ p: 2.5, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}
-            >
-              <DetailRow label="ID" value={allocation.ID} mono />
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 1, border: `1px solid ${theme.palette.divider}` }}>
+              <DetailRow label="ID" value={<Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>{allocation.ID}</Typography>} />
               <DetailRow label="Name" value={allocation.Name} />
               <DetailRow label="Namespace" value={allocation.Namespace} />
               <DetailRow
                 label="Job"
                 value={
-                  <Link
-                    component={RouterLink}
-                    to={createRouteURL('nomadJob', {
-                      name: allocation.JobID,
-                      namespace: allocation.Namespace,
-                    })}
-                  >
+                  <Link component={RouterLink} to={createRouteURL('nomadJob', { name: allocation.JobID, namespace: allocation.Namespace })} sx={{ fontSize: '0.75rem' }}>
                     {allocation.JobID}
                   </Link>
                 }
@@ -848,153 +608,97 @@ export default function AllocationDetails() {
               <DetailRow
                 label="Node"
                 value={
-                  <Link
-                    component={RouterLink}
-                    to={createRouteURL('nomadNode', { id: allocation.NodeID })}
-                  >
+                  <Link component={RouterLink} to={createRouteURL('nomadNode', { id: allocation.NodeID })} sx={{ fontSize: '0.75rem' }}>
                     {allocation.NodeName}
                   </Link>
                 }
               />
-              <DetailRow label="Client Status" value={<StatusChip status={allocation.ClientStatus} />} />
+              <DetailRow label="Client Status" value={<MinimalStatus status={allocation.ClientStatus} />} />
               <DetailRow label="Desired Status" value={allocation.DesiredStatus} />
-              <DetailRow
-                label="Created"
-                value={<DateLabel date={new Date(allocation.CreateTime / 1000000)} />}
-              />
-              <DetailRow
-                label="Modified"
-                value={<DateLabel date={new Date(allocation.ModifyTime / 1000000)} />}
-              />
+              <DetailRow label="Created" value={<DateLabel date={new Date(allocation.CreateTime / 1000000)} />} />
+              <DetailRow label="Modified" value={<DateLabel date={new Date(allocation.ModifyTime / 1000000)} />} />
             </Paper>
-          </Grid>
+          </Box>
 
           {allocation.DeploymentID && (
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600 }}>
-                DEPLOYMENT
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1, display: 'block' }}>
+                Deployment
               </Typography>
-              <Paper
-                elevation={0}
-                sx={{ p: 2.5, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}
-              >
+              <Paper elevation={0} sx={{ p: 1.5, borderRadius: 1, border: `1px solid ${theme.palette.divider}` }}>
                 <DetailRow
                   label="Deployment ID"
                   value={
-                    <Link
-                      component={RouterLink}
-                      to={createRouteURL('nomadDeployment', { id: allocation.DeploymentID })}
-                      sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
-                    >
+                    <Link component={RouterLink} to={createRouteURL('nomadDeployment', { id: allocation.DeploymentID })} sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>
                       {allocation.DeploymentID.substring(0, 8)}
                     </Link>
                   }
                 />
-                <DetailRow
-                  label="Healthy"
-                  value={
-                    <Chip
-                      size="small"
-                      label={allocation.DeploymentStatus?.Healthy ? 'Yes' : 'No'}
-                      color={allocation.DeploymentStatus?.Healthy ? 'success' : 'default'}
-                    />
-                  }
-                />
-                <DetailRow
-                  label="Canary"
-                  value={
-                    <Chip
-                      size="small"
-                      label={allocation.DeploymentStatus?.Canary ? 'Yes' : 'No'}
-                      color={allocation.DeploymentStatus?.Canary ? 'info' : 'default'}
-                    />
-                  }
-                />
+                <DetailRow label="Healthy" value={allocation.DeploymentStatus?.Healthy ? 'Yes' : 'No'} />
+                <DetailRow label="Canary" value={allocation.DeploymentStatus?.Canary ? 'Yes' : 'No'} />
               </Paper>
-            </Grid>
+            </Box>
           )}
-        </Grid>
+        </Box>
       </TabPanel>
 
       {/* Tasks Tab */}
       <TabPanel value={tabValue} index={1}>
-        <Grid container spacing={2}>
+        <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: '24px 1fr 100px 100px auto',
+              gap: 2,
+              py: 0.75,
+              px: 1.5,
+              backgroundColor: alpha(theme.palette.text.primary, 0.02),
+              borderBottom: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <Box />
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase' }}>Task</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', textAlign: 'center' }}>Restarts</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', textAlign: 'center' }}>Started</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', textAlign: 'right' }}>Actions</Typography>
+          </Box>
           {taskStates.map(task => (
-            <Grid key={task.name} size={{ xs: 12, md: 6 }}>
-              <TaskCard
-                task={task}
-                onRestart={() => handleRestart(task.name)}
-                onViewLogs={() => {
-                  setSelectedTask(task.name);
-                  setTabValue(2);
-                }}
-                onExec={() => {
-                  setSelectedTask(task.name);
-                  setTabValue(3);
-                }}
-              />
-            </Grid>
+            <TaskRow
+              key={task.name}
+              task={task}
+              onRestart={() => handleRestart(task.name)}
+              onViewLogs={() => { setSelectedTask(task.name); setTabValue(2); }}
+              onExec={() => { setSelectedTask(task.name); setTabValue(3); }}
+            />
           ))}
-        </Grid>
+        </Paper>
       </TabPanel>
 
       {/* Logs Tab */}
       <TabPanel value={tabValue} index={2}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 340px)', minHeight: 400 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 320px)', minHeight: 400 }}>
           {/* Task selector */}
-          <Paper
-            elevation={0}
-            sx={{
-              display: 'flex',
-              gap: 1,
-              p: 1.5,
-              mb: 2,
-              borderRadius: 2,
-              border: `1px solid ${theme.palette.divider}`,
-              flexWrap: 'wrap',
-            }}
-          >
+          <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5, flexWrap: 'wrap' }}>
             {taskStates.map(task => (
               <Button
                 key={task.name}
                 variant={selectedTask === task.name ? 'contained' : 'outlined'}
                 onClick={() => setSelectedTask(task.name)}
                 size="small"
-                sx={{ textTransform: 'none', borderRadius: 1.5 }}
-                startIcon={
-                  <Icon
-                    icon={task.State === 'running' ? 'mdi:play-circle' : 'mdi:stop-circle'}
-                    width={16}
-                  />
-                }
+                sx={{ textTransform: 'none', borderRadius: 1, px: 1.5, py: 0.5, fontSize: '0.75rem' }}
+                startIcon={<Icon icon={task.State === 'running' ? 'mdi:play-circle' : 'mdi:stop-circle'} width={14} />}
               >
                 {task.name}
               </Button>
             ))}
-          </Paper>
+          </Box>
 
           <Box sx={{ flexGrow: 1, minHeight: 0 }}>
             {selectedTask && id ? (
               <TaskLogs allocId={id} taskName={selectedTask} />
             ) : (
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 3,
-                  textAlign: 'center',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 2,
-                  border: `1px solid ${theme.palette.divider}`,
-                }}
-              >
-                <Icon icon="mdi:text-box-outline" width={48} color={theme.palette.text.disabled} />
-                <Typography color="text.secondary" sx={{ mt: 2 }}>
-                  Select a task to view logs
-                </Typography>
+              <Paper elevation={0} sx={{ p: 3, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 1, border: `1px solid ${theme.palette.divider}` }}>
+                <Typography variant="caption" sx={{ color: 'text.disabled' }}>Select a task to view logs</Typography>
               </Paper>
             )}
           </Box>
@@ -1003,61 +707,41 @@ export default function AllocationDetails() {
 
       {/* Exec Tab */}
       <TabPanel value={tabValue} index={3}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 340px)', minHeight: 400 }}>
-          {/* Task selector */}
-          <Paper
-            elevation={0}
-            sx={{
-              display: 'flex',
-              gap: 1,
-              p: 1.5,
-              mb: 2,
-              borderRadius: 2,
-              border: `1px solid ${theme.palette.divider}`,
-              flexWrap: 'wrap',
-            }}
-          >
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 320px)', minHeight: 400 }}>
+          <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
             {taskStates.map(task => (
               <Button
                 key={task.name}
                 variant={selectedTask === task.name ? 'contained' : 'outlined'}
                 onClick={() => setSelectedTask(task.name)}
                 size="small"
-                sx={{ textTransform: 'none', borderRadius: 1.5 }}
-                startIcon={
-                  <Icon
-                    icon={task.State === 'running' ? 'mdi:play-circle' : 'mdi:stop-circle'}
-                    width={16}
-                  />
-                }
+                sx={{ textTransform: 'none', borderRadius: 1, px: 1.5, py: 0.5, fontSize: '0.75rem' }}
+                startIcon={<Icon icon={task.State === 'running' ? 'mdi:play-circle' : 'mdi:stop-circle'} width={14} />}
               >
                 {task.name}
               </Button>
             ))}
-          </Paper>
+            <Box sx={{ width: 1, height: 24, borderLeft: `1px solid ${theme.palette.divider}`, mx: 0.5 }} />
+            <TextField
+              size="small"
+              value={execCommand}
+              onChange={e => setExecCommand(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && execCommand.trim()) setExecKey(prev => prev + 1); }}
+              placeholder="/bin/sh"
+              sx={{ minWidth: 180, '& .MuiInputBase-input': { fontFamily: 'monospace', fontSize: '0.75rem', py: 0.5 } }}
+              InputProps={{ startAdornment: <InputAdornment position="start"><Icon icon="mdi:console-line" width={16} /></InputAdornment> }}
+            />
+            <IconButton size="small" onClick={() => setExecKey(prev => prev + 1)} disabled={!execCommand.trim()} color="primary" sx={{ p: 0.5 }}>
+              <Icon icon="mdi:play" width={18} />
+            </IconButton>
+          </Box>
 
           <Box sx={{ flexGrow: 1, minHeight: 0 }}>
             {selectedTask && id ? (
-              <TaskExec allocId={id} taskName={selectedTask} onClose={() => setSelectedTask(null)} />
+              <TaskExec key={execKey} allocId={id} taskName={selectedTask} command={[execCommand.trim() || '/bin/sh']} onClose={() => setSelectedTask(null)} />
             ) : (
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 3,
-                  textAlign: 'center',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 2,
-                  border: `1px solid ${theme.palette.divider}`,
-                }}
-              >
-                <Icon icon="mdi:console" width={48} color={theme.palette.text.disabled} />
-                <Typography color="text.secondary" sx={{ mt: 2 }}>
-                  Select a task to open a terminal
-                </Typography>
+              <Paper elevation={0} sx={{ p: 3, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 1, border: `1px solid ${theme.palette.divider}` }}>
+                <Typography variant="caption" sx={{ color: 'text.disabled' }}>Select a task to open terminal</Typography>
               </Paper>
             )}
           </Box>
@@ -1067,45 +751,35 @@ export default function AllocationDetails() {
       {/* Events Tab */}
       <TabPanel value={tabValue} index={4}>
         {taskStates.map(task => (
-          <Box key={task.name} sx={{ mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+          <Box key={task.name} sx={{ mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Typography variant="body2" fontWeight={500}>{task.name}</Typography>
+              <MinimalStatus status={task.State} />
+            </Box>
+            <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+              {/* Header */}
               <Box
                 sx={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 1,
-                  backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  display: 'grid',
+                  gridTemplateColumns: '120px 80px 1fr',
+                  gap: 2,
+                  py: 0.5,
+                  px: 1.5,
+                  backgroundColor: alpha(theme.palette.text.primary, 0.02),
+                  borderBottom: `1px solid ${theme.palette.divider}`,
                 }}
               >
-                <Icon icon="mdi:cube-outline" width={18} color={theme.palette.primary.main} />
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase' }}>Time</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase' }}>Type</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase' }}>Message</Typography>
               </Box>
-              <Typography variant="subtitle1" fontWeight={600}>
-                {task.name}
-              </Typography>
-              <StatusChip status={task.State} />
-            </Box>
-
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2,
-                borderRadius: 2,
-                border: `1px solid ${theme.palette.divider}`,
-              }}
-            >
               {task.Events && task.Events.length > 0 ? (
-                [...task.Events].reverse().map((event, idx, arr) => (
-                  <EventItem key={idx} event={event} isLast={idx === arr.length - 1} />
+                [...task.Events].reverse().map((event, idx) => (
+                  <EventItem key={idx} event={event} taskName={task.name} />
                 ))
               ) : (
-                <Box sx={{ textAlign: 'center', py: 3 }}>
-                  <Icon icon="mdi:history" width={32} color={theme.palette.text.disabled} />
-                  <Typography color="text.secondary" sx={{ mt: 1 }}>
-                    No events
-                  </Typography>
+                <Box sx={{ p: 2, textAlign: 'center' }}>
+                  <Typography variant="caption" sx={{ color: 'text.disabled' }}>No events</Typography>
                 </Box>
               )}
             </Paper>

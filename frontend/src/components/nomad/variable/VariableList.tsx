@@ -4,100 +4,32 @@ import {
   Link,
   IconButton,
   Tooltip,
-  Chip,
   Box,
   Typography,
   TextField,
   InputAdornment,
+  Paper,
+  Skeleton,
+  alpha,
+  useTheme,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SearchIcon from '@mui/icons-material/Search';
-import FolderIcon from '@mui/icons-material/Folder';
-import { SectionBox, SimpleTable, Loader, ErrorPage } from '../../common';
+import { Icon } from '@iconify/react';
+import { SimpleTable, ErrorPage } from '../../common';
 import { listVariables } from '../../../lib/nomad/api';
 import { VariableMetadata } from '../../../lib/nomad/types';
 import { DateLabel } from '../../common/Label';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useNamespace, ALL_NAMESPACES } from '../../../lib/nomad/namespaceContext';
 import NamespaceSwitcher from '../NamespaceSwitcher';
-import { CopyableText } from '../CopyButton';
 
-// Get path prefix for grouping
 function getPathPrefix(path: string): string {
   const parts = path.split('/');
-  if (parts.length > 1) {
-    return parts[0];
-  }
+  if (parts.length > 1) return parts[0];
   return '';
 }
 
-// Get color for prefix (consistent color per prefix)
-function getPrefixColor(prefix: string): { bg: string; color: string; border: string } {
-  const colors = [
-    { bg: '#e3f2fd', color: '#1565c0', border: '#1976d2' }, // blue
-    { bg: '#e8f5e9', color: '#2e7d32', border: '#4caf50' }, // green
-    { bg: '#fff3e0', color: '#e65100', border: '#ff9800' }, // orange
-    { bg: '#f3e5f5', color: '#7b1fa2', border: '#9c27b0' }, // purple
-    { bg: '#e0f7fa', color: '#00838f', border: '#00bcd4' }, // cyan
-    { bg: '#fce4ec', color: '#c2185b', border: '#e91e63' }, // pink
-  ];
-
-  // Special case for 'nomad' prefix
-  if (prefix === 'nomad') {
-    return { bg: '#e3f2fd', color: '#1565c0', border: '#1976d2' };
-  }
-
-  let hash = 0;
-  for (let i = 0; i < prefix.length; i++) {
-    hash = prefix.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
-
-// Group variables by prefix for statistics
-interface PrefixStats {
-  [prefix: string]: number;
-}
-
-function VariableStatsSummary({ variables }: { variables: VariableMetadata[] }) {
-  const prefixStats = useMemo<PrefixStats>(() => {
-    return variables.reduce((acc, v) => {
-      const prefix = getPathPrefix(v.Path) || 'root';
-      acc[prefix] = (acc[prefix] || 0) + 1;
-      return acc;
-    }, {} as PrefixStats);
-  }, [variables]);
-
-  const sortedPrefixes = Object.entries(prefixStats)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5); // Show top 5 prefixes
-
-  return (
-    <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-      <Chip label={variables.length} size="small" variant="outlined" />
-      {sortedPrefixes.map(([prefix, count]) => {
-        const colors = getPrefixColor(prefix);
-        return (
-          <Tooltip key={prefix} title={`${count} variable${count > 1 ? 's' : ''} in ${prefix}/`}>
-            <Chip
-              icon={<FolderIcon sx={{ fontSize: 14 }} />}
-              label={`${prefix}: ${count}`}
-              size="small"
-              sx={{
-                backgroundColor: colors.bg,
-                color: colors.color,
-                border: `1px solid ${colors.border}`,
-                '& .MuiChip-icon': { color: colors.color },
-              }}
-            />
-          </Tooltip>
-        );
-      })}
-    </Box>
-  );
-}
-
 export default function VariableList() {
+  const theme = useTheme();
   const { namespace } = useNamespace();
   const [variables, setVariables] = useState<VariableMetadata[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +39,6 @@ export default function VariableList() {
   const loadVariables = useCallback(async () => {
     try {
       setLoading(true);
-      // Use namespace=* to get variables from all namespaces, or specific namespace
       const params = namespace === ALL_NAMESPACES ? { namespace: '*' } : { namespace };
       const data = await listVariables(params);
       setVariables(data || []);
@@ -123,7 +54,15 @@ export default function VariableList() {
     loadVariables();
   }, [loadVariables]);
 
-  // Filter variables based on search
+  const prefixStats = useMemo(() => {
+    const stats: Record<string, number> = {};
+    variables.forEach(v => {
+      const prefix = getPathPrefix(v.Path) || 'root';
+      stats[prefix] = (stats[prefix] || 0) + 1;
+    });
+    return Object.entries(stats).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [variables]);
+
   const filteredVariables = useMemo(() => {
     if (!searchQuery.trim()) return variables;
     const query = searchQuery.toLowerCase();
@@ -136,7 +75,12 @@ export default function VariableList() {
   }, [variables, searchQuery]);
 
   if (loading) {
-    return <Loader title="Loading variables..." />;
+    return (
+      <Box sx={{ pb: 3 }}>
+        <Skeleton variant="rectangular" height={50} sx={{ borderRadius: 1, mb: 2 }} />
+        <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 1 }} />
+      </Box>
+    );
   }
 
   if (error) {
@@ -144,111 +88,137 @@ export default function VariableList() {
   }
 
   return (
-    <SectionBox
-      title={
-        <Box display="flex" alignItems="center" gap={2}>
-          <Typography variant="h5" component="span">
+    <Box sx={{ pb: 3 }}>
+      {/* Compact Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 2,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
             Variables
           </Typography>
-          <VariableStatsSummary variables={variables} />
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.8rem' }}>
+            {variables.length}
+          </Typography>
         </Box>
-      }
-      headerProps={{
-        actions: [
-          <TextField
-            key="search"
-            size="small"
-            placeholder="Search variables..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ minWidth: 200 }}
-          />,
-          <NamespaceSwitcher key="namespace" />,
-          <Tooltip key="refresh" title="Refresh">
-            <IconButton onClick={loadVariables} size="small">
-              <RefreshIcon />
+
+        {/* Inline Prefix Stats */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {prefixStats.map(([prefix, count]) => (
+            <Box key={prefix} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.75rem' }}>
+                {count}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>
+                {prefix}/
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+
+      {/* Controls */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 2 }}>
+        <TextField
+          size="small"
+          placeholder="Search variables..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Icon icon="mdi:magnify" width={18} color={theme.palette.text.secondary} />
+              </InputAdornment>
+            ),
+            sx: { fontSize: '0.8rem', py: 0 },
+          }}
+          sx={{ minWidth: 200, maxWidth: 300, '& .MuiInputBase-input': { py: 0.75 } }}
+        />
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <NamespaceSwitcher />
+          <Tooltip title="Refresh">
+            <IconButton onClick={loadVariables} size="small" sx={{ p: 0.75 }}>
+              <Icon icon="mdi:refresh" width={18} />
             </IconButton>
-          </Tooltip>,
-        ],
-      }}
-    >
-      <SimpleTable
-        columns={[
-          {
-            label: 'Path',
-            getter: (variable: VariableMetadata) => (
-              <Link
-                component={RouterLink}
-                to={createRouteURL('nomadVariable', {
-                  path: variable.Path,
-                  namespace: variable.Namespace,
-                })}
-                sx={{ fontFamily: 'monospace' }}
-              >
-                <CopyableText value={variable.Path} fontFamily="monospace" />
-              </Link>
-            ),
-          },
-          {
-            label: 'Namespace',
-            getter: (variable: VariableMetadata) => (
-              <Chip label={variable.Namespace} size="small" variant="outlined" />
-            ),
-          },
-          {
-            label: 'Prefix',
-            getter: (variable: VariableMetadata) => {
-              const prefix = getPathPrefix(variable.Path);
-              if (!prefix) {
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* Table */}
+      <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+        <SimpleTable
+          columns={[
+            {
+              label: 'Path',
+              getter: (variable: VariableMetadata) => (
+                <Link
+                  component={RouterLink}
+                  to={createRouteURL('nomadVariable', { path: variable.Path, namespace: variable.Namespace })}
+                  sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                >
+                  {variable.Path}
+                </Link>
+              ),
+            },
+            {
+              label: 'Namespace',
+              getter: (variable: VariableMetadata) => (
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                  {variable.Namespace}
+                </Typography>
+              ),
+              gridTemplate: 'auto',
+            },
+            {
+              label: 'Prefix',
+              getter: (variable: VariableMetadata) => {
+                const prefix = getPathPrefix(variable.Path);
+                if (!prefix) {
+                  return <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>;
+                }
                 return (
-                  <Typography variant="body2" color="text.secondary">
-                    -
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontSize: '0.7rem',
+                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                      color: theme.palette.primary.main,
+                      px: 0.75,
+                      py: 0.125,
+                      borderRadius: 0.5,
+                    }}
+                  >
+                    {prefix}
                   </Typography>
                 );
-              }
-              const colors = getPrefixColor(prefix);
-              return (
-                <Chip
-                  label={prefix}
-                  size="small"
-                  sx={{
-                    backgroundColor: colors.bg,
-                    color: colors.color,
-                    border: `1px solid ${colors.border}`,
-                  }}
-                />
-              );
+              },
+              gridTemplate: 'auto',
             },
-          },
-          {
-            label: 'Created',
-            getter: (variable: VariableMetadata) =>
-              variable.CreateTime ? (
-                <DateLabel date={new Date(variable.CreateTime / 1000000)} />
-              ) : (
-                '-'
-              ),
-          },
-          {
-            label: 'Modified',
-            getter: (variable: VariableMetadata) =>
-              variable.ModifyTime ? (
-                <DateLabel date={new Date(variable.ModifyTime / 1000000)} />
-              ) : (
-                '-'
-              ),
-          },
-        ]}
-        data={filteredVariables}
-        emptyMessage="No variables found"
-      />
-    </SectionBox>
+            {
+              label: 'Created',
+              getter: (variable: VariableMetadata) =>
+                variable.CreateTime ? <DateLabel date={new Date(variable.CreateTime / 1000000)} format="mini" /> : '—',
+              gridTemplate: 'auto',
+            },
+            {
+              label: 'Modified',
+              getter: (variable: VariableMetadata) =>
+                variable.ModifyTime ? <DateLabel date={new Date(variable.ModifyTime / 1000000)} format="mini" /> : '—',
+              gridTemplate: 'auto',
+            },
+          ]}
+          data={filteredVariables}
+          emptyMessage="No variables found"
+        />
+      </Paper>
+    </Box>
   );
 }

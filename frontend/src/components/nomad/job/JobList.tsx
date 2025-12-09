@@ -10,21 +10,20 @@ import {
   InputAdornment,
   ToggleButton,
   ToggleButtonGroup,
-  Chip,
-  Paper,
-  Divider,
   alpha,
   useTheme,
+  Paper,
+  Skeleton,
 } from '@mui/material';
 import { Icon } from '@iconify/react';
-import { SectionBox, SimpleTable, Loader, ErrorPage } from '../../common';
+import { SimpleTable, ErrorPage } from '../../common';
 import { listJobs } from '../../../lib/nomad/api';
 import { JobListStub } from '../../../lib/nomad/types';
 import { DateLabel } from '../../common/Label';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useNamespace, ALL_NAMESPACES } from '../../../lib/nomad/namespaceContext';
 import NamespaceSwitcher from '../NamespaceSwitcher';
-import { MinimalStatus, AllocationCounts, InlineBadge } from '../statusStyles';
+import { MinimalStatus, AllocationCounts, minimalStatusColors } from '../statusStyles';
 
 interface JobNode {
   job: JobListStub;
@@ -32,34 +31,25 @@ interface JobNode {
   depth: number;
 }
 
-// Parse job ID to extract parent path
 function getParentJobId(jobId: string): string | null {
   const lastSlash = jobId.lastIndexOf('/');
   if (lastSlash === -1) return null;
   return jobId.substring(0, lastSlash);
 }
 
-// Build a tree structure from flat job list
 function buildJobTree(jobs: JobListStub[]): JobNode[] {
   const jobMap = new Map<string, JobListStub>();
   const nodeMap = new Map<string, JobNode>();
 
-  // First pass: create a map of all jobs
   jobs.forEach(job => {
     jobMap.set(job.ID, job);
   });
 
-  // Second pass: create nodes and establish relationships
   jobs.forEach(job => {
-    const node: JobNode = {
-      job,
-      children: [],
-      depth: 0,
-    };
+    const node: JobNode = { job, children: [], depth: 0 };
     nodeMap.set(job.ID, node);
   });
 
-  // Third pass: build the tree
   const rootNodes: JobNode[] = [];
 
   jobs.forEach(job => {
@@ -75,7 +65,6 @@ function buildJobTree(jobs: JobListStub[]): JobNode[] {
     }
   });
 
-  // Sort children by submit time (newest first)
   const sortNodes = (nodes: JobNode[]) => {
     nodes.sort((a, b) => (b.job.SubmitTime || 0) - (a.job.SubmitTime || 0));
     nodes.forEach(node => sortNodes(node.children));
@@ -85,12 +74,7 @@ function buildJobTree(jobs: JobListStub[]): JobNode[] {
   return rootNodes;
 }
 
-// Flatten tree for display with expand/collapse state
-function flattenTree(
-  nodes: JobNode[],
-  expandedIds: Set<string>,
-  result: JobNode[] = []
-): JobNode[] {
+function flattenTree(nodes: JobNode[], expandedIds: Set<string>, result: JobNode[] = []): JobNode[] {
   nodes.forEach(node => {
     result.push(node);
     if (node.children.length > 0 && expandedIds.has(node.job.ID)) {
@@ -100,14 +84,9 @@ function flattenTree(
   return result;
 }
 
-// Get summary stats - minimal inline display with colored numbers
 function JobSummaryStats({ job }: { job: JobListStub }) {
   if (!job.JobSummary?.Summary) {
-    return (
-      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8125rem' }}>
-        —
-      </Typography>
-    );
+    return <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.75rem' }}>—</Typography>;
   }
 
   const summary = Object.values(job.JobSummary.Summary).reduce(
@@ -122,24 +101,15 @@ function JobSummaryStats({ job }: { job: JobListStub }) {
 
   const total = summary.running + summary.pending + summary.failed + summary.complete;
   if (total === 0) {
-    return (
-      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8125rem' }}>
-        —
-      </Typography>
-    );
+    return <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.75rem' }}>—</Typography>;
   }
 
-  return (
-    <AllocationCounts
-      running={summary.running}
-      pending={summary.pending}
-      failed={summary.failed}
-      complete={summary.complete}
-    />
-  );
+  return <AllocationCounts running={summary.running} pending={summary.pending} failed={summary.failed} complete={summary.complete} />;
 }
 
 export default function JobList() {
+  const theme = useTheme();
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
   const { namespace } = useNamespace();
   const [jobs, setJobs] = useState<JobListStub[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,10 +136,8 @@ export default function JobList() {
     loadJobs();
   }, [loadJobs]);
 
-  // Build tree structure
   const jobTree = useMemo(() => buildJobTree(jobs), [jobs]);
 
-  // Filter jobs based on search
   const filteredJobs = useMemo(() => {
     if (!searchQuery.trim()) return jobs;
     const query = searchQuery.toLowerCase();
@@ -183,10 +151,8 @@ export default function JobList() {
     );
   }, [jobs, searchQuery]);
 
-  // Get flattened tree for display
   const displayJobs = useMemo(() => {
     if (viewMode === 'flat' || searchQuery.trim()) {
-      // In flat mode or when searching, show all jobs sorted by submit time
       return [...filteredJobs].sort((a, b) => (b.SubmitTime || 0) - (a.SubmitTime || 0));
     }
     return flattenTree(jobTree, expandedIds);
@@ -195,11 +161,8 @@ export default function JobList() {
   const toggleExpand = (jobId: string) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
-      if (next.has(jobId)) {
-        next.delete(jobId);
-      } else {
-        next.add(jobId);
-      }
+      if (next.has(jobId)) next.delete(jobId);
+      else next.add(jobId);
       return next;
     });
   };
@@ -218,23 +181,15 @@ export default function JobList() {
     setExpandedIds(allIds);
   };
 
-  const collapseAll = () => {
-    setExpandedIds(new Set());
-  };
+  const collapseAll = () => setExpandedIds(new Set());
 
-  const theme = useTheme();
-
-  // Count jobs with children
   const jobsWithChildren = useMemo(() => {
     return jobs.filter(job => {
-      const childJobs = jobs.filter(
-        j => j.ParentID === job.ID || getParentJobId(j.ID) === job.ID
-      );
+      const childJobs = jobs.filter(j => j.ParentID === job.ID || getParentJobId(j.ID) === job.ID);
       return childJobs.length > 0;
     }).length;
   }, [jobs]);
 
-  // Calculate status breakdown
   const statusBreakdown = useMemo(() => {
     const breakdown = { running: 0, pending: 0, dead: 0 };
     jobs.forEach(job => {
@@ -246,7 +201,12 @@ export default function JobList() {
   }, [jobs]);
 
   if (loading) {
-    return <Loader title="Loading jobs..." />;
+    return (
+      <Box sx={{ pb: 3 }}>
+        <Skeleton variant="rectangular" height={50} sx={{ borderRadius: 1, mb: 2 }} />
+        <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 1 }} />
+      </Box>
+    );
   }
 
   if (error) {
@@ -254,345 +214,264 @@ export default function JobList() {
   }
 
   return (
-    <Box>
-      {/* Header Section */}
-      <Paper
-        elevation={0}
+    <Box sx={{ pb: 3 }}>
+      {/* Compact Header */}
+      <Box
         sx={{
-          p: 2,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           mb: 2,
-          borderRadius: 2,
-          background: alpha(theme.palette.primary.main, 0.03),
-          border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
-        {/* Top Row: Title and Stats */}
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-          <Box display="flex" alignItems="center" gap={2}>
-            <Box display="flex" alignItems="center" gap={1}>
-              <Icon icon="mdi:briefcase-outline" width={28} color={theme.palette.primary.main} />
-              <Typography variant="h5" fontWeight={600}>
-                Jobs
-              </Typography>
-            </Box>
-            <Chip
-              label={jobs.length}
-              size="small"
-              sx={{
-                fontWeight: 600,
-                bgcolor: alpha(theme.palette.primary.main, 0.1),
-                color: theme.palette.primary.main,
-              }}
-            />
-          </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+            Jobs
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.8rem' }}>
+            {jobs.length}
+          </Typography>
+        </Box>
 
-          {/* Quick Stats */}
-          <Box display="flex" alignItems="center" gap={1}>
-            <Tooltip title="Running jobs">
-              <Chip
-                icon={<Icon icon="mdi:play-circle" width={14} />}
-                label={statusBreakdown.running}
-                size="small"
-                sx={{
-                  bgcolor: alpha(theme.palette.success.main, 0.1),
-                  color: theme.palette.success.main,
-                  '& .MuiChip-icon': { color: 'inherit' },
-                }}
-              />
-            </Tooltip>
-            <Tooltip title="Pending jobs">
-              <Chip
-                icon={<Icon icon="mdi:clock-outline" width={14} />}
-                label={statusBreakdown.pending}
-                size="small"
-                sx={{
-                  bgcolor: alpha(theme.palette.warning.main, 0.1),
-                  color: theme.palette.warning.main,
-                  '& .MuiChip-icon': { color: 'inherit' },
-                }}
-              />
-            </Tooltip>
-            <Tooltip title="Dead jobs">
-              <Chip
-                icon={<Icon icon="mdi:stop-circle" width={14} />}
-                label={statusBreakdown.dead}
-                size="small"
-                sx={{
-                  bgcolor: alpha(theme.palette.text.disabled, 0.1),
-                  color: theme.palette.text.secondary,
-                  '& .MuiChip-icon': { color: 'inherit' },
-                }}
-              />
-            </Tooltip>
+        {/* Inline Stats */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: colors.success, fontWeight: 600, fontSize: '0.8rem' }}>
+                {statusBreakdown.running}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>running</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: colors.pending, fontWeight: 600, fontSize: '0.8rem' }}>
+                {statusBreakdown.pending}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>pending</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.8rem' }}>
+                {statusBreakdown.dead}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>dead</Typography>
+            </Box>
             {jobsWithChildren > 0 && (
-              <Tooltip title={`${jobsWithChildren} jobs have child jobs (periodic/parameterized)`}>
-                <Chip
-                  icon={<Icon icon="mdi:file-tree" width={14} />}
-                  label={`${jobsWithChildren} parents`}
-                  size="small"
-                  variant="outlined"
-                  sx={{ color: theme.palette.text.secondary }}
-                />
-              </Tooltip>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', ml: 1 }}>
+                {jobsWithChildren} parent{jobsWithChildren !== 1 ? 's' : ''}
+              </Typography>
             )}
           </Box>
         </Box>
+      </Box>
 
-        <Divider sx={{ mb: 2 }} />
+      {/* Controls */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+          mb: 2,
+        }}
+      >
+        {/* Search */}
+        <TextField
+          size="small"
+          placeholder="Search jobs..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Icon icon="mdi:magnify" width={18} color={theme.palette.text.secondary} />
+              </InputAdornment>
+            ),
+            sx: { fontSize: '0.8rem', py: 0 },
+          }}
+          sx={{ minWidth: 200, maxWidth: 300, '& .MuiInputBase-input': { py: 0.75 } }}
+        />
 
-        {/* Controls Row */}
-        <Box display="flex" alignItems="center" justifyContent="space-between" gap={2}>
-          {/* Left: Search */}
-          <TextField
+        {/* Right controls */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {/* View toggle */}
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(_, value) => value && setViewMode(value)}
             size="small"
-            placeholder="Search by name, type, namespace..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Icon icon="mdi:magnify" width={20} color={theme.palette.text.secondary} />
-                </InputAdornment>
-              ),
-              sx: {
-                borderRadius: 2,
-                bgcolor: theme.palette.background.paper,
+            sx={{
+              '& .MuiToggleButton-root': {
+                px: 1,
+                py: 0.5,
+                fontSize: '0.7rem',
+                border: `1px solid ${theme.palette.divider}`,
+                '&.Mui-selected': {
+                  bgcolor: alpha(theme.palette.primary.main, 0.1),
+                  color: theme.palette.primary.main,
+                },
               },
             }}
-            sx={{ minWidth: 280, flexGrow: 1, maxWidth: 400 }}
-          />
+          >
+            <ToggleButton value="tree">
+              <Icon icon="mdi:file-tree-outline" width={16} />
+            </ToggleButton>
+            <ToggleButton value="flat">
+              <Icon icon="mdi:format-list-bulleted" width={16} />
+            </ToggleButton>
+          </ToggleButtonGroup>
 
-          {/* Right: View Controls */}
-          <Box display="flex" alignItems="center" gap={1}>
-            {/* View Mode Toggle */}
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={(_, value) => value && setViewMode(value)}
-              size="small"
-              sx={{
-                '& .MuiToggleButton-root': {
-                  px: 1.5,
-                  borderRadius: 1,
-                  border: `1px solid ${theme.palette.divider}`,
-                  '&.Mui-selected': {
-                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                    color: theme.palette.primary.main,
-                    borderColor: theme.palette.primary.main,
-                  },
-                },
-              }}
-            >
-              <ToggleButton value="tree">
-                <Tooltip title="Tree view (grouped by parent)">
-                  <Box display="flex" alignItems="center" gap={0.5}>
-                    <Icon icon="mdi:file-tree-outline" width={18} />
-                    <Typography variant="caption" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                      Tree
-                    </Typography>
-                  </Box>
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="flat">
-                <Tooltip title="Flat view (all jobs)">
-                  <Box display="flex" alignItems="center" gap={0.5}>
-                    <Icon icon="mdi:format-list-bulleted" width={18} />
-                    <Typography variant="caption" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                      List
-                    </Typography>
-                  </Box>
-                </Tooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
+          {viewMode === 'tree' && jobsWithChildren > 0 && (
+            <>
+              <Tooltip title="Expand all">
+                <IconButton onClick={expandAll} size="small" sx={{ p: 0.5 }}>
+                  <Icon icon="mdi:unfold-more-horizontal" width={16} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Collapse all">
+                <IconButton onClick={collapseAll} size="small" sx={{ p: 0.5 }}>
+                  <Icon icon="mdi:unfold-less-horizontal" width={16} />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
 
-            {/* Expand/Collapse (only in tree mode with children) */}
-            {viewMode === 'tree' && jobsWithChildren > 0 && (
-              <Box
-                display="flex"
-                sx={{
-                  border: `1px solid ${theme.palette.divider}`,
-                  borderRadius: 1,
-                  overflow: 'hidden',
-                }}
-              >
-                <Tooltip title="Expand all">
-                  <IconButton
-                    onClick={expandAll}
-                    size="small"
-                    sx={{ borderRadius: 0, px: 1 }}
-                  >
-                    <Icon icon="mdi:unfold-more-horizontal" width={18} />
-                  </IconButton>
-                </Tooltip>
-                <Divider orientation="vertical" flexItem />
-                <Tooltip title="Collapse all">
-                  <IconButton
-                    onClick={collapseAll}
-                    size="small"
-                    sx={{ borderRadius: 0, px: 1 }}
-                  >
-                    <Icon icon="mdi:unfold-less-horizontal" width={18} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            )}
+          <Box sx={{ width: 1, height: 20, borderLeft: `1px solid ${theme.palette.divider}`, mx: 0.5 }} />
 
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 28, alignSelf: 'center' }} />
+          <NamespaceSwitcher />
 
-            {/* Namespace Switcher */}
-            <NamespaceSwitcher />
-
-            {/* Refresh */}
-            <Tooltip title="Refresh">
-              <IconButton
-                onClick={loadJobs}
-                size="small"
-                sx={{
-                  border: `1px solid ${theme.palette.divider}`,
-                  borderRadius: 1,
-                }}
-              >
-                <Icon icon="mdi:refresh" width={18} />
-              </IconButton>
-            </Tooltip>
-          </Box>
+          <Tooltip title="Refresh">
+            <IconButton onClick={loadJobs} size="small" sx={{ p: 0.75 }}>
+              <Icon icon="mdi:refresh" width={18} />
+            </IconButton>
+          </Tooltip>
         </Box>
-      </Paper>
+      </Box>
 
-      {/* Table Section */}
-      <SectionBox
-        title=""
-        headerProps={{ actions: [] }}
-      >
-      <SimpleTable
-        columns={[
-          {
-            label: 'Name',
-            getter: (item: JobNode | JobListStub) => {
-              const job = 'job' in item ? item.job : item;
-              const depth = 'depth' in item ? item.depth : 0;
-              const hasChildren = 'children' in item ? item.children.length > 0 : false;
-              const isExpanded = expandedIds.has(job.ID);
+      {/* Table */}
+      <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+        <SimpleTable
+          columns={[
+            {
+              label: 'Name',
+              getter: (item: JobNode | JobListStub) => {
+                const job = 'job' in item ? item.job : item;
+                const depth = 'depth' in item ? item.depth : 0;
+                const hasChildren = 'children' in item ? item.children.length > 0 : false;
+                const isExpanded = expandedIds.has(job.ID);
+                const hasAnyChildren = jobsWithChildren > 0;
 
-              // Check if any job in the tree has children (to decide if we need expand column)
-              const hasAnyChildren = jobsWithChildren > 0;
-
-              return (
-                <Box
-                  display="flex"
-                  alignItems="center"
-                  sx={{ pl: viewMode === 'tree' ? depth * 2 : 0 }}
-                >
-                  {/* Expand/collapse button or spacer for alignment */}
-                  {viewMode === 'tree' && hasAnyChildren && (
-                    hasChildren ? (
-                      <IconButton
-                        size="small"
-                        onClick={e => {
-                          e.stopPropagation();
-                          toggleExpand(job.ID);
-                        }}
-                        sx={{ mr: 0.5, p: 0.25, opacity: 0.5 }}
-                      >
-                        <Icon
-                          icon={isExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'}
-                          width={16}
-                        />
-                      </IconButton>
-                    ) : (
-                      <Box sx={{ width: 24, mr: 0.5 }} />
-                    )
-                  )}
-                  <Box sx={{ minWidth: 0 }}>
-                    <Box display="flex" alignItems="center" gap={0.5}>
-                      <Link
-                        component={RouterLink}
-                        to={createRouteURL('nomadJob', {
-                          name: job.ID,
-                          namespace: job.Namespace,
-                        })}
-                        sx={{ fontWeight: depth === 0 ? 500 : 400 }}
-                      >
-                        {depth > 0 ? job.ID.split('/').pop() : job.Name}
-                      </Link>
-                      {/* Subtle inline indicators */}
-                      {job.Periodic && (
-                        <Tooltip title="Periodic job">
-                          <Box component="span" sx={{ display: 'inline-flex', opacity: 0.6 }}>
-                            <Icon icon="mdi:clock-outline" width={12} color="inherit" />
-                          </Box>
-                        </Tooltip>
-                      )}
-                      {job.ParameterizedJob && (
-                        <Tooltip title="Parameterized job">
-                          <Box component="span" sx={{ display: 'inline-flex', opacity: 0.6 }}>
-                            <Icon icon="mdi:send-outline" width={12} color="inherit" />
-                          </Box>
-                        </Tooltip>
+                return (
+                  <Box display="flex" alignItems="center" sx={{ pl: viewMode === 'tree' ? depth * 2 : 0 }}>
+                    {viewMode === 'tree' && hasAnyChildren && (
+                      hasChildren ? (
+                        <IconButton
+                          size="small"
+                          onClick={e => { e.stopPropagation(); toggleExpand(job.ID); }}
+                          sx={{ mr: 0.5, p: 0.25 }}
+                        >
+                          <Icon icon={isExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'} width={14} color={theme.palette.text.secondary} />
+                        </IconButton>
+                      ) : (
+                        <Box sx={{ width: 22, mr: 0.5 }} />
+                      )
+                    )}
+                    <Box sx={{ minWidth: 0 }}>
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        <Link
+                          component={RouterLink}
+                          to={createRouteURL('nomadJob', { name: job.ID, namespace: job.Namespace })}
+                          sx={{ fontWeight: depth === 0 ? 500 : 400, fontSize: '0.85rem' }}
+                        >
+                          {depth > 0 ? job.ID.split('/').pop() : job.Name}
+                        </Link>
+                        {job.Periodic && (
+                          <Tooltip title="Periodic">
+                            <Box component="span" sx={{ display: 'inline-flex', opacity: 0.5 }}>
+                              <Icon icon="mdi:clock-outline" width={12} />
+                            </Box>
+                          </Tooltip>
+                        )}
+                        {job.ParameterizedJob && (
+                          <Tooltip title="Parameterized">
+                            <Box component="span" sx={{ display: 'inline-flex', opacity: 0.5 }}>
+                              <Icon icon="mdi:send-outline" width={12} />
+                            </Box>
+                          </Tooltip>
+                        )}
+                      </Box>
+                      {depth > 0 && (
+                        <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', fontSize: '0.65rem' }}>
+                          {job.ID}
+                        </Typography>
                       )}
                     </Box>
-                    {depth > 0 && (
-                      <Typography
-                        variant="caption"
-                        color="text.disabled"
-                        sx={{ display: 'block', fontSize: '0.6875rem' }}
-                      >
-                        {job.ID}
-                      </Typography>
-                    )}
                   </Box>
-                </Box>
-              );
+                );
+              },
             },
-          },
-          {
-            label: 'Status',
-            getter: (item: JobNode | JobListStub) => {
-              const job = 'job' in item ? item.job : item;
-              return <MinimalStatus status={job.Status} />;
+            {
+              label: 'Status',
+              getter: (item: JobNode | JobListStub) => {
+                const job = 'job' in item ? item.job : item;
+                return <MinimalStatus status={job.Status} />;
+              },
+              gridTemplate: 'auto',
             },
-            gridTemplate: 'auto',
-          },
-          {
-            label: 'Type',
-            getter: (item: JobNode | JobListStub) => {
-              const job = 'job' in item ? item.job : item;
-              return <InlineBadge>{job.Type}</InlineBadge>;
+            {
+              label: 'Type',
+              getter: (item: JobNode | JobListStub) => {
+                const job = 'job' in item ? item.job : item;
+                return (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: 'text.secondary',
+                      backgroundColor: alpha(theme.palette.text.primary, 0.05),
+                      px: 0.75,
+                      py: 0.125,
+                      borderRadius: 0.5,
+                      fontSize: '0.7rem',
+                    }}
+                  >
+                    {job.Type}
+                  </Typography>
+                );
+              },
+              gridTemplate: 'auto',
             },
-            gridTemplate: 'auto',
-          },
-          {
-            label: 'Namespace',
-            getter: (item: JobNode | JobListStub) => {
-              const job = 'job' in item ? item.job : item;
-              return <InlineBadge>{job.Namespace}</InlineBadge>;
+            {
+              label: 'Namespace',
+              getter: (item: JobNode | JobListStub) => {
+                const job = 'job' in item ? item.job : item;
+                return (
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                    {job.Namespace}
+                  </Typography>
+                );
+              },
+              gridTemplate: 'auto',
             },
-            gridTemplate: 'auto',
-          },
-          {
-            label: 'Allocations',
-            getter: (item: JobNode | JobListStub) => {
-              const job = 'job' in item ? item.job : item;
-              return <JobSummaryStats job={job} />;
+            {
+              label: 'Allocations',
+              getter: (item: JobNode | JobListStub) => {
+                const job = 'job' in item ? item.job : item;
+                return <JobSummaryStats job={job} />;
+              },
             },
-          },
-          {
-            label: 'Age',
-            getter: (item: JobNode | JobListStub) => {
-              const job = 'job' in item ? item.job : item;
-              return job.SubmitTime ? (
-                <DateLabel date={new Date(job.SubmitTime / 1000000)} />
-              ) : (
-                '—'
-              );
+            {
+              label: 'Age',
+              getter: (item: JobNode | JobListStub) => {
+                const job = 'job' in item ? item.job : item;
+                return job.SubmitTime ? <DateLabel date={new Date(job.SubmitTime / 1000000)} format="mini" /> : '—';
+              },
+              gridTemplate: 'auto',
             },
-            gridTemplate: 'auto',
-          },
-        ]}
-        data={displayJobs}
-        emptyMessage="No jobs found"
-      />
-      </SectionBox>
+          ]}
+          data={displayJobs}
+          emptyMessage="No jobs found"
+        />
+      </Paper>
     </Box>
   );
 }

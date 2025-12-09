@@ -2,96 +2,30 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Link,
-  Chip,
   IconButton,
   Tooltip,
   Box,
   Typography,
   TextField,
   InputAdornment,
+  Paper,
+  Skeleton,
+  alpha,
+  useTheme,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SearchIcon from '@mui/icons-material/Search';
-import { SectionBox, SimpleTable, Loader, ErrorPage } from '../../common';
+import { Icon } from '@iconify/react';
+import { SimpleTable, ErrorPage } from '../../common';
 import { listEvaluations } from '../../../lib/nomad/api';
 import { Evaluation } from '../../../lib/nomad/types';
 import { DateLabel } from '../../common/Label';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useNamespace, ALL_NAMESPACES } from '../../../lib/nomad/namespaceContext';
 import NamespaceSwitcher from '../NamespaceSwitcher';
-import { StatusChip, statusColors } from '../statusStyles';
-import { CopyableId } from '../CopyButton';
-
-// Summary stats for evaluations
-interface EvaluationStats {
-  total: number;
-  pending: number;
-  complete: number;
-  failed: number;
-  blocked: number;
-}
-
-function EvaluationStatsSummary({ stats }: { stats: EvaluationStats }) {
-  return (
-    <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-      <Chip label={stats.total} size="small" variant="outlined" />
-      {stats.pending > 0 && (
-        <Tooltip title="Pending evaluations">
-          <Chip
-            label={`${stats.pending} pending`}
-            size="small"
-            sx={{
-              backgroundColor: statusColors.warning.background,
-              color: statusColors.warning.color,
-              border: `1px solid ${statusColors.warning.border}`,
-            }}
-          />
-        </Tooltip>
-      )}
-      {stats.blocked > 0 && (
-        <Tooltip title="Blocked evaluations">
-          <Chip
-            label={`${stats.blocked} blocked`}
-            size="small"
-            sx={{
-              backgroundColor: statusColors.pending.background,
-              color: statusColors.pending.color,
-              border: `1px solid ${statusColors.pending.border}`,
-            }}
-          />
-        </Tooltip>
-      )}
-      {stats.complete > 0 && (
-        <Tooltip title="Complete evaluations">
-          <Chip
-            label={`${stats.complete} complete`}
-            size="small"
-            sx={{
-              backgroundColor: statusColors.success.background,
-              color: statusColors.success.color,
-              border: `1px solid ${statusColors.success.border}`,
-            }}
-          />
-        </Tooltip>
-      )}
-      {stats.failed > 0 && (
-        <Tooltip title="Failed evaluations">
-          <Chip
-            label={`${stats.failed} failed`}
-            size="small"
-            sx={{
-              backgroundColor: statusColors.error.background,
-              color: statusColors.error.color,
-              border: `1px solid ${statusColors.error.border}`,
-            }}
-          />
-        </Tooltip>
-      )}
-    </Box>
-  );
-}
+import { MinimalStatus, minimalStatusColors } from '../statusStyles';
 
 export default function EvaluationList() {
+  const theme = useTheme();
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
   const { namespace } = useNamespace();
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +37,6 @@ export default function EvaluationList() {
       setLoading(true);
       const params = namespace === ALL_NAMESPACES ? { namespace: '*' } : { namespace };
       const data = await listEvaluations(params);
-      // Sort by creation time (most recent first)
       const sorted = (data || []).sort((a, b) => {
         const aTime = a.CreateTime || 0;
         const bTime = b.CreateTime || 0;
@@ -122,8 +55,7 @@ export default function EvaluationList() {
     loadEvaluations();
   }, [loadEvaluations]);
 
-  // Calculate stats
-  const stats = useMemo<EvaluationStats>(() => {
+  const stats = useMemo(() => {
     return evaluations.reduce(
       (acc, evaluation) => {
         acc.total++;
@@ -138,7 +70,6 @@ export default function EvaluationList() {
     );
   }, [evaluations]);
 
-  // Filter evaluations based on search
   const filteredEvaluations = useMemo(() => {
     if (!searchQuery.trim()) return evaluations;
     const query = searchQuery.toLowerCase();
@@ -154,7 +85,12 @@ export default function EvaluationList() {
   }, [evaluations, searchQuery]);
 
   if (loading) {
-    return <Loader title="Loading evaluations..." />;
+    return (
+      <Box sx={{ pb: 3 }}>
+        <Skeleton variant="rectangular" height={50} sx={{ borderRadius: 1, mb: 2 }} />
+        <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 1 }} />
+      </Box>
+    );
   }
 
   if (error) {
@@ -162,122 +98,178 @@ export default function EvaluationList() {
   }
 
   return (
-    <SectionBox
-      title={
-        <Box display="flex" alignItems="center" gap={2}>
-          <Typography variant="h5" component="span">
+    <Box sx={{ pb: 3 }}>
+      {/* Compact Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 2,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
             Evaluations
           </Typography>
-          <EvaluationStatsSummary stats={stats} />
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.8rem' }}>
+            {stats.total}
+          </Typography>
         </Box>
-      }
-      headerProps={{
-        actions: [
-          <TextField
-            key="search"
-            size="small"
-            placeholder="Search evaluations..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ minWidth: 200 }}
-          />,
-          <NamespaceSwitcher key="namespace" />,
-          <Tooltip key="refresh" title="Refresh">
-            <IconButton onClick={loadEvaluations} size="small">
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>,
-        ],
-      }}
-    >
-      <SimpleTable
-        columns={[
-          {
-            label: 'ID',
-            getter: (evaluation: Evaluation) => (
-              <Link
-                component={RouterLink}
-                to={createRouteURL('nomadEvaluation', { id: evaluation.ID })}
-              >
-                <CopyableId id={evaluation.ID} />
-              </Link>
-            ),
-          },
-          {
-            label: 'Namespace',
-            getter: (evaluation: Evaluation) => (
-              <Chip
-                label={evaluation.Namespace || 'default'}
-                size="small"
-                variant="outlined"
-              />
-            ),
-          },
-          {
-            label: 'Job',
-            getter: (evaluation: Evaluation) => (
-              <Link
-                component={RouterLink}
-                to={createRouteURL('nomadJob', {
-                  name: evaluation.JobID,
-                  namespace: evaluation.Namespace || 'default',
-                })}
-              >
-                {evaluation.JobID}
-              </Link>
-            ),
-          },
-          {
-            label: 'Triggered By',
-            getter: (evaluation: Evaluation) => (
-              <Chip
-                label={evaluation.TriggeredBy}
-                size="small"
-                variant="outlined"
-                sx={{ textTransform: 'capitalize' }}
-              />
-            ),
-          },
-          {
-            label: 'Status',
-            getter: (evaluation: Evaluation) => (
-              <StatusChip status={evaluation.Status} />
-            ),
-          },
-          {
-            label: 'Priority',
-            getter: (evaluation: Evaluation) => (
-              <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                {evaluation.Priority}
+
+        {/* Inline Stats */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {stats.pending > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: colors.pending, fontWeight: 600, fontSize: '0.8rem' }}>
+                {stats.pending}
               </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>pending</Typography>
+            </Box>
+          )}
+          {stats.blocked > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: colors.pending, fontWeight: 600, fontSize: '0.8rem' }}>
+                {stats.blocked}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>blocked</Typography>
+            </Box>
+          )}
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+            <Typography variant="caption" sx={{ color: colors.success, fontWeight: 600, fontSize: '0.8rem' }}>
+              {stats.complete}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>complete</Typography>
+          </Box>
+          {stats.failed > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: colors.error, fontWeight: 600, fontSize: '0.8rem' }}>
+                {stats.failed}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>failed</Typography>
+            </Box>
+          )}
+        </Box>
+      </Box>
+
+      {/* Controls */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 2 }}>
+        <TextField
+          size="small"
+          placeholder="Search evaluations..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Icon icon="mdi:magnify" width={18} color={theme.palette.text.secondary} />
+              </InputAdornment>
             ),
-          },
-          {
-            label: 'Type',
-            getter: (evaluation: Evaluation) => (
-              <Chip label={evaluation.Type} size="small" variant="outlined" />
-            ),
-          },
-          {
-            label: 'Created',
-            getter: (evaluation: Evaluation) =>
-              evaluation.CreateTime ? (
-                <DateLabel date={new Date(evaluation.CreateTime / 1000000)} />
-              ) : (
-                '-'
+            sx: { fontSize: '0.8rem', py: 0 },
+          }}
+          sx={{ minWidth: 200, maxWidth: 300, '& .MuiInputBase-input': { py: 0.75 } }}
+        />
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <NamespaceSwitcher />
+          <Tooltip title="Refresh">
+            <IconButton onClick={loadEvaluations} size="small" sx={{ p: 0.75 }}>
+              <Icon icon="mdi:refresh" width={18} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* Table */}
+      <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+        <SimpleTable
+          columns={[
+            {
+              label: 'ID',
+              getter: (evaluation: Evaluation) => (
+                <Link
+                  component={RouterLink}
+                  to={createRouteURL('nomadEvaluation', { id: evaluation.ID })}
+                  sx={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 500 }}
+                >
+                  {evaluation.ID.substring(0, 8)}
+                </Link>
               ),
-          },
-        ]}
-        data={filteredEvaluations}
-        emptyMessage="No evaluations found"
-      />
-    </SectionBox>
+            },
+            {
+              label: 'Status',
+              getter: (evaluation: Evaluation) => <MinimalStatus status={evaluation.Status} />,
+              gridTemplate: 'auto',
+            },
+            {
+              label: 'Job',
+              getter: (evaluation: Evaluation) => (
+                <Link
+                  component={RouterLink}
+                  to={createRouteURL('nomadJob', { name: evaluation.JobID, namespace: evaluation.Namespace || 'default' })}
+                  sx={{ fontSize: '0.8rem' }}
+                >
+                  {evaluation.JobID}
+                </Link>
+              ),
+            },
+            {
+              label: 'Namespace',
+              getter: (evaluation: Evaluation) => (
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                  {evaluation.Namespace || 'default'}
+                </Typography>
+              ),
+              gridTemplate: 'auto',
+            },
+            {
+              label: 'Triggered By',
+              getter: (evaluation: Evaluation) => (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontSize: '0.7rem',
+                    textTransform: 'capitalize',
+                    backgroundColor: alpha(theme.palette.text.primary, 0.05),
+                    px: 0.75,
+                    py: 0.125,
+                    borderRadius: 0.5,
+                  }}
+                >
+                  {evaluation.TriggeredBy}
+                </Typography>
+              ),
+            },
+            {
+              label: 'Type',
+              getter: (evaluation: Evaluation) => (
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                  {evaluation.Type}
+                </Typography>
+              ),
+            },
+            {
+              label: 'Priority',
+              getter: (evaluation: Evaluation) => (
+                <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'text.secondary' }}>
+                  {evaluation.Priority}
+                </Typography>
+              ),
+              gridTemplate: 'auto',
+            },
+            {
+              label: 'Created',
+              getter: (evaluation: Evaluation) =>
+                evaluation.CreateTime ? <DateLabel date={new Date(evaluation.CreateTime / 1000000)} format="mini" /> : '—',
+              gridTemplate: 'auto',
+            },
+          ]}
+          data={filteredEvaluations}
+          emptyMessage="No evaluations found"
+        />
+      </Paper>
+    </Box>
   );
 }

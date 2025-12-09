@@ -6,8 +6,6 @@ import {
   Box,
   Breadcrumbs,
   Button,
-  Card,
-  CardContent,
   Chip,
   Collapse,
   Dialog,
@@ -15,8 +13,6 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  Divider,
-  Grid,
   IconButton,
   LinearProgress,
   Link,
@@ -32,15 +28,15 @@ import {
   getJob,
   getJobAllocations,
   deleteJob,
-  scaleJob,
   listJobs,
   listDeployments,
+  getJobEvaluations,
 } from '../../../lib/nomad/api';
-import { Job, AllocationListStub, JobListStub, Deployment } from '../../../lib/nomad/types';
+import { Job, AllocationListStub, JobListStub, Deployment, Evaluation } from '../../../lib/nomad/types';
 import { SimpleTable } from '../../common';
 import { DateLabel } from '../../common/Label';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
-import { StatusChip } from '../statusStyles';
+import { MinimalStatus, minimalStatusColors, getStatusCategory } from '../statusStyles';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -51,12 +47,12 @@ interface TabPanelProps {
 function TabPanel({ children, value, index, ...other }: TabPanelProps) {
   return (
     <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
     </div>
   );
 }
 
-// Simple JSON view component (plain text, no highlighting to avoid memory issues)
+// Compact JSON viewer
 function JsonView({ json }: { json: string }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -65,15 +61,15 @@ function JsonView({ json }: { json: string }) {
     <Box
       component="pre"
       sx={{
-        fontFamily: '"Fira Code", "JetBrains Mono", "SF Mono", Consolas, monospace',
-        fontSize: '0.8rem',
-        lineHeight: 1.5,
+        fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+        fontSize: '0.75rem',
+        lineHeight: 1.6,
         p: 2,
         m: 0,
         overflow: 'auto',
         maxHeight: 600,
-        backgroundColor: isDark ? '#1e1e1e' : '#f8f8f8',
-        color: isDark ? '#d4d4d4' : '#333',
+        backgroundColor: isDark ? '#0d0d0d' : '#fafafa',
+        color: isDark ? '#e0e0e0' : '#1a1a1a',
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
       }}
@@ -102,69 +98,54 @@ function getJobHierarchy(jobId: string): string[] {
   return hierarchy;
 }
 
-// Summary stat card
-function StatCard({
-  icon,
+// Compact stat item (inline, not card)
+function StatItem({
   label,
   value,
   color,
   subValue,
 }: {
-  icon: string;
   label: string;
   value: number | string;
-  color: string;
+  color?: string;
   subValue?: string;
 }) {
   const theme = useTheme();
-
   return (
-    <Card
-      elevation={0}
-      sx={{
-        border: `1px solid ${theme.palette.divider}`,
-        borderRadius: 2,
-        height: '100%',
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          borderColor: color,
-          boxShadow: `0 4px 12px ${alpha(color, 0.15)}`,
-        },
-      }}
-    >
-      <CardContent sx={{ p: 2.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
-          <Box
-            sx={{
-              width: 36,
-              height: 36,
-              borderRadius: 1.5,
-              backgroundColor: alpha(color, 0.1),
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Icon icon={icon} width={20} color={color} />
-          </Box>
-          <Typography variant="body2" color="text.secondary" fontWeight={500}>
-            {label}
-          </Typography>
-        </Box>
-        <Typography variant="h4" fontWeight={600}>
-          {value}
+    <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 80 }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: 'text.secondary',
+          fontSize: '0.65rem',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          mb: 0.25,
+        }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: '1.25rem',
+          fontWeight: 600,
+          color: color || 'text.primary',
+          lineHeight: 1.2,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {value}
+      </Typography>
+      {subValue && (
+        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>
+          {subValue}
         </Typography>
-        {subValue && (
-          <Typography variant="caption" color="text.secondary">
-            {subValue}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </Box>
   );
 }
 
-// Detail row component
+// Compact detail row
 function DetailRow({
   label,
   value,
@@ -180,19 +161,19 @@ function DetailRow({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        py: 1.5,
+        py: 0.75,
         borderBottom: '1px solid',
         borderColor: 'divider',
         '&:last-child': { borderBottom: 'none' },
       }}
     >
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
         {label}
       </Typography>
       <Box
         sx={{
-          fontSize: '0.875rem',
-          ...(mono ? { fontFamily: 'monospace', fontSize: '0.8rem' } : {}),
+          fontSize: '0.75rem',
+          ...(mono ? { fontFamily: 'monospace', fontSize: '0.7rem' } : {}),
         }}
       >
         {value}
@@ -201,312 +182,394 @@ function DetailRow({
   );
 }
 
-// Task group card
-function TaskGroupCard({
+// Compact task group row (table-like)
+function TaskGroupRow({
   taskGroup,
   allocations,
-  onScale,
+  namespace,
+  jobId,
 }: {
   taskGroup: any;
   allocations: AllocationListStub[];
-  onScale?: (count: number) => void;
+  namespace: string;
+  jobId: string;
 }) {
   const theme = useTheme();
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
+  const [expanded, setExpanded] = useState(false);
+
   const groupAllocs = allocations.filter(a => a.TaskGroup === taskGroup.Name);
   const running = groupAllocs.filter(a => a.ClientStatus === 'running').length;
   const pending = groupAllocs.filter(a => a.ClientStatus === 'pending').length;
   const failed = groupAllocs.filter(a => a.ClientStatus === 'failed').length;
 
+  const totalCpu = taskGroup.Tasks?.reduce((sum: number, t: any) => sum + (t.Resources?.CPU || 0), 0) || 0;
+  const totalMem = taskGroup.Tasks?.reduce((sum: number, t: any) => sum + (t.Resources?.MemoryMB || 0), 0) || 0;
+
   return (
-    <Card
-      elevation={0}
-      sx={{
-        border: `1px solid ${theme.palette.divider}`,
-        borderRadius: 2,
-        mb: 2,
-        overflow: 'hidden',
-      }}
-    >
-      {/* Header */}
+    <Box sx={{ borderBottom: `1px solid ${theme.palette.divider}`, '&:last-child': { borderBottom: 'none' } }}>
+      {/* Main row */}
       <Box
+        onClick={() => setExpanded(!expanded)}
         sx={{
-          p: 2,
-          backgroundColor: alpha(theme.palette.primary.main, 0.03),
-          borderBottom: `1px solid ${theme.palette.divider}`,
-          display: 'flex',
-          justifyContent: 'space-between',
+          display: 'grid',
+          gridTemplateColumns: '24px 1fr 100px 140px 100px 80px',
           alignItems: 'center',
+          gap: 2,
+          py: 1,
+          px: 1.5,
+          cursor: 'pointer',
+          transition: 'background-color 0.15s',
+          '&:hover': {
+            backgroundColor: alpha(theme.palette.primary.main, 0.03),
+          },
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 1.5,
-              backgroundColor: alpha(theme.palette.primary.main, 0.1),
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Icon icon="mdi:layers-triple" width={22} color={theme.palette.primary.main} />
-          </Box>
-          <Box>
-            <Typography variant="subtitle1" fontWeight={600}>
-              {taskGroup.Name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {taskGroup.Tasks?.length || 0} task{(taskGroup.Tasks?.length || 0) !== 1 ? 's' : ''} ·
-              Count: {taskGroup.Count}
-            </Typography>
-          </Box>
+        <Icon
+          icon={expanded ? 'mdi:chevron-down' : 'mdi:chevron-right'}
+          width={16}
+          color={theme.palette.text.secondary}
+        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <Typography variant="body2" fontWeight={500} noWrap>
+            {taskGroup.Name}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.disabled', flexShrink: 0 }}>
+            {taskGroup.Tasks?.length || 0} task{(taskGroup.Tasks?.length || 0) !== 1 ? 's' : ''}
+          </Typography>
         </Box>
-
-        {/* Allocation status pills */}
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums', textAlign: 'center' }}>
+          ×{taskGroup.Count}
+        </Typography>
+        {/* Allocation counts */}
+        <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
           {running > 0 && (
-            <Chip
-              size="small"
-              icon={<Icon icon="mdi:check-circle" width={14} />}
-              label={`${running} Running`}
-              sx={{
-                backgroundColor: alpha(theme.palette.success.main, 0.1),
-                color: theme.palette.success.main,
-                fontWeight: 500,
-                fontSize: '0.7rem',
-              }}
-            />
+            <Typography variant="body2" sx={{ color: colors.success, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+              {running}
+            </Typography>
           )}
           {pending > 0 && (
-            <Chip
-              size="small"
-              icon={<Icon icon="mdi:clock-outline" width={14} />}
-              label={`${pending} Pending`}
-              sx={{
-                backgroundColor: alpha(theme.palette.warning.main, 0.1),
-                color: theme.palette.warning.main,
-                fontWeight: 500,
-                fontSize: '0.7rem',
-              }}
-            />
+            <Typography variant="body2" sx={{ color: colors.pending, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+              {pending}
+            </Typography>
           )}
           {failed > 0 && (
-            <Chip
-              size="small"
-              icon={<Icon icon="mdi:alert-circle" width={14} />}
-              label={`${failed} Failed`}
-              sx={{
-                backgroundColor: alpha(theme.palette.error.main, 0.1),
-                color: theme.palette.error.main,
-                fontWeight: 500,
-                fontSize: '0.7rem',
-              }}
-            />
+            <Typography variant="body2" sx={{ color: colors.error, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+              {failed}
+            </Typography>
+          )}
+          {running === 0 && pending === 0 && failed === 0 && (
+            <Typography variant="body2" sx={{ color: 'text.disabled' }}>—</Typography>
           )}
         </Box>
+        {/* Resources */}
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.7rem', textAlign: 'right' }}>
+          {totalCpu} MHz
+        </Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.7rem', textAlign: 'right' }}>
+          {totalMem} MB
+        </Typography>
       </Box>
 
-      {/* Tasks */}
-      <Box sx={{ p: 2 }}>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          fontWeight={600}
-          sx={{ display: 'block', mb: 1.5 }}
-        >
-          TASKS
-        </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      {/* Expanded tasks */}
+      <Collapse in={expanded}>
+        <Box sx={{ backgroundColor: alpha(theme.palette.background.default, 0.5), py: 0.5 }}>
           {taskGroup.Tasks?.map((task: any) => (
             <Box
               key={task.Name}
               sx={{
-                p: 1.5,
-                borderRadius: 1.5,
-                backgroundColor: alpha(theme.palette.background.default, 0.5),
-                border: `1px solid ${theme.palette.divider}`,
-                display: 'flex',
-                justifyContent: 'space-between',
+                display: 'grid',
+                gridTemplateColumns: '24px 1fr 100px 140px 100px 80px',
                 alignItems: 'center',
+                gap: 2,
+                py: 0.5,
+                px: 1.5,
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Icon icon="mdi:cube-outline" width={18} color={theme.palette.text.secondary} />
-                <Box>
-                  <Typography variant="body2" fontWeight={500}>
-                    {task.Name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {task.Driver}
-                  </Typography>
-                </Box>
+              <Box />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 2 }}>
+                <Icon icon="mdi:cube-outline" width={14} color={theme.palette.text.disabled} />
+                <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
+                  {task.Name}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'text.disabled',
+                    fontSize: '0.65rem',
+                    backgroundColor: alpha(theme.palette.text.primary, 0.05),
+                    px: 0.75,
+                    py: 0.125,
+                    borderRadius: 0.5,
+                  }}
+                >
+                  {task.Driver}
+                </Typography>
               </Box>
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    CPU
-                  </Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {task.Resources?.CPU || '—'} MHz
-                  </Typography>
-                </Box>
-                <Divider orientation="vertical" flexItem />
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    Memory
-                  </Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {task.Resources?.MemoryMB || '—'} MB
-                  </Typography>
-                </Box>
-              </Box>
+              <Box />
+              <Box />
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontFamily: 'monospace', fontSize: '0.65rem', textAlign: 'right' }}>
+                {task.Resources?.CPU || '—'} MHz
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontFamily: 'monospace', fontSize: '0.65rem', textAlign: 'right' }}>
+                {task.Resources?.MemoryMB || '—'} MB
+              </Typography>
             </Box>
           ))}
         </Box>
-      </Box>
-    </Card>
+      </Collapse>
+    </Box>
   );
 }
 
-// Deployment progress card
-function DeploymentCard({ deployment }: { deployment: Deployment }) {
-  const theme = useTheme();
-  const taskGroups = deployment.TaskGroups ? Object.entries(deployment.TaskGroups) : [];
+// Placement failures component
+interface PlacementFailure {
+  taskGroup: string;
+  unplacedCount: number;
+  constraints: { constraint: string; count: number }[];
+  classFiltered: { className: string; count: number }[];
+  nodesEvaluated: number;
+  nodesFiltered: number;
+  nodesExhausted: number;
+  dimensionExhausted: { dimension: string; count: number }[];
+}
 
-  const statusColor =
-    deployment.Status === 'successful'
-      ? theme.palette.success.main
-      : deployment.Status === 'running'
-        ? theme.palette.info.main
-        : deployment.Status === 'failed'
-          ? theme.palette.error.main
-          : theme.palette.warning.main;
+function PlacementFailuresAlert({
+  failures,
+}: {
+  failures: PlacementFailure[];
+}) {
+  const theme = useTheme();
+  const [expanded, setExpanded] = useState(false);
+
+  if (failures.length === 0) return null;
+
+  const totalUnplaced = failures.reduce((sum, f) => sum + f.unplacedCount, 0);
 
   return (
     <Paper
       elevation={0}
       sx={{
-        borderRadius: 2,
-        border: `1px solid ${theme.palette.divider}`,
+        mb: 2,
+        borderRadius: 1,
+        border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
+        backgroundColor: alpha(theme.palette.error.main, 0.03),
         overflow: 'hidden',
       }}
     >
-      {/* Header */}
+      {/* Compact header - clickable */}
       <Box
+        onClick={() => setExpanded(!expanded)}
         sx={{
-          p: 2,
-          backgroundColor: alpha(statusColor, 0.05),
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          px: 1.5,
+          py: 1,
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
+          gap: 1,
+          cursor: 'pointer',
+          '&:hover': { backgroundColor: alpha(theme.palette.error.main, 0.05) },
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 1.5,
-              backgroundColor: alpha(statusColor, 0.1),
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Icon
-              icon={
-                deployment.Status === 'successful'
-                  ? 'mdi:check-circle'
-                  : deployment.Status === 'running'
-                    ? 'mdi:progress-clock'
-                    : deployment.Status === 'failed'
-                      ? 'mdi:alert-circle'
-                      : 'mdi:pause-circle'
-              }
-              width={22}
-              color={statusColor}
-            />
-          </Box>
-          <Box>
-            <Typography variant="subtitle1" fontWeight={600}>
-              Deployment v{deployment.JobVersion}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                fontFamily: 'monospace',
-                fontSize: '0.7rem',
-                color: 'text.secondary',
-              }}
-            >
-              {deployment.ID.substring(0, 8)}
-            </Typography>
-          </Box>
-        </Box>
-        <StatusChip status={deployment.Status || 'unknown'} />
+        <Icon icon={expanded ? 'mdi:chevron-down' : 'mdi:chevron-right'} width={16} color={theme.palette.error.main} />
+        <Icon icon="mdi:alert-circle" width={16} color={theme.palette.error.main} />
+        <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 500, fontSize: '0.8rem' }}>
+          {totalUnplaced} placement failure{totalUnplaced !== 1 ? 's' : ''}
+        </Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary', ml: 'auto' }}>
+          {failures.map(f => f.taskGroup).join(', ')}
+        </Typography>
       </Box>
 
-      {/* Progress */}
-      <Box sx={{ p: 2 }}>
-        {deployment.StatusDescription && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {deployment.StatusDescription}
-          </Typography>
-        )}
-
-        {taskGroups.map(([name, state]: [string, any]) => {
-          const total = state.DesiredTotal || 0;
-          const healthy = state.HealthyAllocs || 0;
-          const unhealthy = state.UnhealthyAllocs || 0;
-          const percent = total > 0 ? Math.round((healthy / total) * 100) : 0;
-
-          return (
-            <Box key={name} sx={{ mb: 2, '&:last-child': { mb: 0 } }}>
-              <Box
-                sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}
-              >
-                <Typography variant="body2" fontWeight={500}>
-                  {name}
+      {/* Expanded details */}
+      <Collapse in={expanded}>
+        <Box sx={{ borderTop: `1px solid ${alpha(theme.palette.error.main, 0.15)}` }}>
+          {failures.map((failure, idx) => (
+            <Box
+              key={failure.taskGroup}
+              sx={{
+                px: 1.5,
+                py: 1,
+                borderBottom: idx < failures.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
+              }}
+            >
+              {/* Task group header */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.8rem' }}>
+                  {failure.taskGroup}
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-                  <Typography variant="caption" color="success.main">
-                    {healthy} healthy
+                <Typography variant="caption" sx={{ color: 'error.main', fontSize: '0.7rem' }}>
+                  {failure.unplacedCount} unplaced
+                </Typography>
+                <Box sx={{ ml: 'auto', display: 'flex', gap: 2 }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
+                    {failure.nodesEvaluated} evaluated
                   </Typography>
-                  {unhealthy > 0 && (
-                    <Typography variant="caption" color="error.main">
-                      {unhealthy} unhealthy
-                    </Typography>
-                  )}
-                  <Typography variant="caption" color="text.secondary">
-                    / {total}
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
+                    {failure.nodesFiltered} filtered
                   </Typography>
                 </Box>
               </Box>
-              <LinearProgress
-                variant="determinate"
-                value={percent}
-                sx={{
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: alpha(theme.palette.divider, 0.5),
-                  '& .MuiLinearProgress-bar': {
-                    borderRadius: 4,
-                    backgroundColor:
-                      percent === 100
-                        ? theme.palette.success.main
-                        : unhealthy > 0
-                          ? theme.palette.warning.main
-                          : theme.palette.primary.main,
-                  },
-                }}
-              />
+
+              {/* Constraint failures */}
+              {failure.constraints.length > 0 && (
+                <Box sx={{ pl: 1.5 }}>
+                  {failure.constraints.map((c, i) => (
+                    <Box key={i} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, py: 0.25 }}>
+                      <Icon icon="mdi:filter-off" width={12} color={theme.palette.warning.main} style={{ marginTop: 2 }} />
+                      <Typography
+                        variant="caption"
+                        sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}
+                      >
+                        {c.constraint}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', flexShrink: 0 }}>
+                        ({c.count} node{c.count !== 1 ? 's' : ''})
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              {/* Resource exhaustion */}
+              {failure.dimensionExhausted.length > 0 && (
+                <Box sx={{ pl: 1.5, mt: 0.5 }}>
+                  {failure.dimensionExhausted.map((d, i) => (
+                    <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.25 }}>
+                      <Icon
+                        icon={d.dimension.toLowerCase().includes('cpu') ? 'mdi:chip' : 'mdi:memory'}
+                        width={12}
+                        color={theme.palette.error.main}
+                      />
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                        {d.dimension}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>
+                        exhausted on {d.count} node{d.count !== 1 ? 's' : ''}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              )}
             </Box>
-          );
-        })}
-      </Box>
+          ))}
+        </Box>
+      </Collapse>
     </Paper>
+  );
+}
+
+// Helper to extract placement failures from evaluations
+function extractPlacementFailures(evaluations: Evaluation[]): PlacementFailure[] {
+  const sortedEvals = [...evaluations].sort((a, b) => (b.ModifyIndex || 0) - (a.ModifyIndex || 0));
+  
+  // Only show placement failures from blocked evaluations (ongoing issues)
+  // Completed evaluations with FailedTGAllocs are historical and no longer relevant
+  const evalWithFailures = sortedEvals.find(
+    e => e.Status === 'blocked' && e.FailedTGAllocs && Object.keys(e.FailedTGAllocs).length > 0
+  );
+
+  if (!evalWithFailures || !evalWithFailures.FailedTGAllocs) {
+    return [];
+  }
+
+  const failures: PlacementFailure[] = [];
+
+  for (const [taskGroup, metrics] of Object.entries(evalWithFailures.FailedTGAllocs)) {
+    const constraints: { constraint: string; count: number }[] = [];
+    const classFiltered: { className: string; count: number }[] = [];
+    const dimensionExhausted: { dimension: string; count: number }[] = [];
+
+    if (metrics.ConstraintFiltered) {
+      for (const [constraint, count] of Object.entries(metrics.ConstraintFiltered)) {
+        constraints.push({ constraint, count });
+      }
+    }
+
+    if (metrics.ClassFiltered) {
+      for (const [className, count] of Object.entries(metrics.ClassFiltered)) {
+        classFiltered.push({ className, count });
+      }
+    }
+
+    if (metrics.DimensionExhausted) {
+      for (const [dimension, count] of Object.entries(metrics.DimensionExhausted)) {
+        dimensionExhausted.push({ dimension, count });
+      }
+    }
+
+    const hasFailures = constraints.length > 0 || classFiltered.length > 0 || dimensionExhausted.length > 0 || metrics.NodesExhausted > 0;
+    if (hasFailures) {
+      failures.push({
+        taskGroup,
+        unplacedCount: (metrics.CoalescedFailures || 0) + 1,
+        constraints,
+        classFiltered,
+        nodesEvaluated: metrics.NodesEvaluated || 0,
+        nodesFiltered: metrics.NodesFiltered || 0,
+        nodesExhausted: metrics.NodesExhausted || 0,
+        dimensionExhausted,
+      });
+    }
+  }
+
+  return failures;
+}
+
+// Compact deployment progress
+function DeploymentProgress({ deployment }: { deployment: Deployment }) {
+  const theme = useTheme();
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
+  const taskGroups = deployment.TaskGroups ? Object.entries(deployment.TaskGroups) : [];
+
+  const statusColor =
+    deployment.Status === 'successful' ? colors.success
+    : deployment.Status === 'running' ? colors.pending
+    : deployment.Status === 'failed' ? colors.error
+    : colors.cancelled;
+
+  return (
+    <Box sx={{ py: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+        <MinimalStatus status={deployment.Status || 'unknown'} />
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.65rem' }}>
+          v{deployment.JobVersion} · {deployment.ID.substring(0, 8)}
+        </Typography>
+      </Box>
+
+      {taskGroups.map(([name, state]: [string, any]) => {
+        const total = state.DesiredTotal || 0;
+        const healthy = state.HealthyAllocs || 0;
+        const unhealthy = state.UnhealthyAllocs || 0;
+        const percent = total > 0 ? Math.round((healthy / total) * 100) : 0;
+
+        return (
+          <Box key={name} sx={{ mb: 1, '&:last-child': { mb: 0 } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+              <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                {name}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
+                {healthy}/{total} healthy
+                {unhealthy > 0 && <span style={{ color: colors.error, marginLeft: 8 }}>{unhealthy} unhealthy</span>}
+              </Typography>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={percent}
+              sx={{
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: alpha(theme.palette.divider, 0.5),
+                '& .MuiLinearProgress-bar': {
+                  borderRadius: 2,
+                  backgroundColor: percent === 100 ? colors.success : unhealthy > 0 ? colors.error : colors.pending,
+                },
+              }}
+            />
+          </Box>
+        );
+      })}
+    </Box>
   );
 }
 
@@ -521,6 +584,7 @@ export default function JobDetails() {
   const [allocations, setAllocations] = useState<AllocationListStub[]>([]);
   const [childJobs, setChildJobs] = useState<JobListStub[]>([]);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const [placementFailures, setPlacementFailures] = useState<PlacementFailure[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [tabValue, setTabValue] = useState(0);
@@ -528,6 +592,8 @@ export default function JobDetails() {
   const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [metaExpanded, setMetaExpanded] = useState(false);
+
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
 
   useEffect(() => {
     loadJob();
@@ -538,11 +604,12 @@ export default function JobDetails() {
 
     try {
       setLoading(true);
-      const [jobData, allocsData, allJobsData, deploymentsData] = await Promise.all([
+      const [jobData, allocsData, allJobsData, deploymentsData, evaluationsData] = await Promise.all([
         getJob(name, namespace),
         getJobAllocations(name, namespace),
         listJobs({ namespace: namespace || '*' }),
         listDeployments({ namespace: namespace || '*' }),
+        getJobEvaluations(name, namespace),
       ]);
       setJob(jobData);
       setAllocations(allocsData || []);
@@ -555,6 +622,9 @@ export default function JobDetails() {
       const jobDeployments = (deploymentsData || []).filter(d => d.JobID === name);
       jobDeployments.sort((a, b) => (b.JobCreateIndex || 0) - (a.JobCreateIndex || 0));
       setDeployments(jobDeployments);
+
+      const failures = extractPlacementFailures(evaluationsData || []);
+      setPlacementFailures(failures);
 
       setError(null);
     } catch (err) {
@@ -603,21 +673,21 @@ export default function JobDetails() {
 
   if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Skeleton variant="rectangular" height={140} sx={{ borderRadius: 2, mb: 3 }} />
-        <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 2 }} />
+      <Box sx={{ p: 2 }}>
+        <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 1, mb: 2 }} />
+        <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Icon icon="mdi:alert-circle" width={48} color={theme.palette.error.main} />
-        <Typography color="error" sx={{ mt: 2 }}>
-          Error loading job: {error.message}
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Icon icon="mdi:alert-circle" width={36} color={theme.palette.error.main} />
+        <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+          {error.message}
         </Typography>
-        <Button onClick={loadJob} sx={{ mt: 2 }}>
+        <Button onClick={loadJob} size="small" sx={{ mt: 1 }}>
           Retry
         </Button>
       </Box>
@@ -626,8 +696,8 @@ export default function JobDetails() {
 
   if (!job) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Typography color="text.secondary">Job not found</Typography>
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">Job not found</Typography>
       </Box>
     );
   }
@@ -637,31 +707,26 @@ export default function JobDetails() {
   const pendingAllocs = allocations.filter(a => a.ClientStatus === 'pending').length;
   const failedAllocs = allocations.filter(a => a.ClientStatus === 'failed').length;
 
-  const statusColor =
-    job.Status === 'running'
-      ? theme.palette.success.main
-      : job.Status === 'pending'
-        ? theme.palette.warning.main
-        : theme.palette.error.main;
+  const statusCategory = getStatusCategory(job.Status);
+  const statusColor = colors[statusCategory];
 
   const metaEntries = job.Meta ? Object.entries(job.Meta) : [];
 
   return (
-    <Box>
-      {/* Breadcrumbs */}
+    <Box sx={{ pb: 3 }}>
+      {/* Breadcrumbs - compact */}
       {(breadcrumbs.length > 0 || job.ParentID) && (
-        <Box sx={{ mb: 2 }}>
+        <Box sx={{ mb: 1.5 }}>
           <Breadcrumbs
-            separator={<Icon icon="mdi:chevron-right" width={16} />}
-            sx={{ fontSize: '0.875rem' }}
+            separator={<Icon icon="mdi:chevron-right" width={14} />}
+            sx={{ fontSize: '0.75rem' }}
           >
             <Link
               component={RouterLink}
               to={createRouteURL('nomadJobs')}
               color="inherit"
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}
             >
-              <Icon icon="mdi:briefcase-outline" width={16} />
               Jobs
             </Link>
             {job.ParentID && !breadcrumbs.some(b => b.id === job.ParentID) && (
@@ -669,6 +734,7 @@ export default function JobDetails() {
                 component={RouterLink}
                 to={createRouteURL('nomadJob', { name: job.ParentID, namespace: job.Namespace })}
                 color="inherit"
+                sx={{ fontSize: '0.75rem' }}
               >
                 {job.ParentID.split('/').pop() || job.ParentID}
               </Link>
@@ -679,279 +745,232 @@ export default function JobDetails() {
                 component={RouterLink}
                 to={createRouteURL('nomadJob', { name: b.id, namespace: job.Namespace })}
                 color="inherit"
+                sx={{ fontSize: '0.75rem' }}
               >
                 {b.name}
               </Link>
             ))}
-            <Typography color="text.primary" fontWeight={500}>
-              {job.Name.split('/').pop() || job.Name}
-            </Typography>
           </Breadcrumbs>
         </Box>
       )}
 
-      {/* Header */}
-      <Paper
-        elevation={0}
+      {/* Compact Header */}
+      <Box
         sx={{
-          p: 3,
-          mb: 3,
-          borderRadius: 2,
-          border: `1px solid ${theme.palette.divider}`,
-          background: `linear-gradient(135deg, ${alpha(statusColor, 0.03)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          mb: 2,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'flex-start' }}>
-            <Box
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.75 }}>
+            <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+              {job.Name.split('/').pop() || job.Name}
+            </Typography>
+            <MinimalStatus status={job.Status} />
+            <Typography
+              variant="caption"
               sx={{
-                width: 56,
-                height: 56,
-                borderRadius: 2,
-                backgroundColor: alpha(statusColor, 0.1),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: `2px solid ${alpha(statusColor, 0.3)}`,
+                fontFamily: 'monospace',
+                fontSize: '0.65rem',
+                color: 'text.disabled',
+                backgroundColor: alpha(theme.palette.text.primary, 0.05),
+                px: 0.75,
+                py: 0.25,
+                borderRadius: 0.5,
               }}
             >
-              <Icon
-                icon={
-                  job.Periodic
-                    ? 'mdi:calendar-clock'
-                    : job.ParameterizedJob
-                      ? 'mdi:send'
-                      : 'mdi:briefcase'
-                }
-                width={28}
-                color={statusColor}
-              />
-            </Box>
-
-            <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-                <Typography variant="h5" fontWeight={600}>
-                  {job.Name.split('/').pop() || job.Name}
-                </Typography>
-                <StatusChip status={job.Status} />
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1, flexWrap: 'wrap' }}>
-                <Chip label={job.Type} size="small" variant="outlined" />
-                {job.Periodic && (
-                  <Chip
-                    size="small"
-                    icon={<Icon icon="mdi:calendar-clock" width={14} />}
-                    label="Periodic"
-                    color="info"
-                    variant="outlined"
-                  />
-                )}
-                {job.ParameterizedJob && (
-                  <Chip
-                    size="small"
-                    icon={<Icon icon="mdi:send" width={14} />}
-                    label="Parameterized"
-                    color="secondary"
-                    variant="outlined"
-                  />
-                )}
-                {hasChildren && (
-                  <Chip
-                    size="small"
-                    icon={<Icon icon="mdi:file-tree" width={14} />}
-                    label={`${childJobs.length} children`}
-                    color="info"
-                    variant="outlined"
-                  />
-                )}
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-                >
-                  <Icon icon="mdi:folder-outline" width={16} />
-                  {job.Namespace}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontFamily: 'monospace',
-                    fontSize: '0.75rem',
-                    color: 'text.disabled',
-                    backgroundColor: alpha(theme.palette.text.primary, 0.05),
-                    px: 1,
-                    py: 0.25,
-                    borderRadius: 1,
-                  }}
-                >
-                  v{job.Version}
-                </Typography>
-              </Box>
-            </Box>
+              v{job.Version}
+            </Typography>
           </Box>
-
-          {/* Actions */}
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Tooltip title="Refresh">
-              <IconButton onClick={loadJob} size="small">
-                <Icon icon="mdi:refresh" width={20} />
-              </IconButton>
-            </Tooltip>
-            {job.Status !== 'dead' && (
-              <Button
-                onClick={() => setStopDialogOpen(true)}
-                variant="outlined"
-                size="small"
-                color="warning"
-                startIcon={<Icon icon="mdi:stop" width={18} />}
-              >
-                Stop
-              </Button>
-            )}
-            <Button
-              onClick={() => setPurgeDialogOpen(true)}
-              variant="outlined"
-              size="small"
-              color="error"
-              startIcon={<Icon icon="mdi:delete" width={18} />}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Icon icon="mdi:folder-outline" width={14} />
+              {job.Namespace}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.secondary',
+                backgroundColor: alpha(theme.palette.text.primary, 0.05),
+                px: 0.75,
+                py: 0.125,
+                borderRadius: 0.5,
+                fontSize: '0.7rem',
+              }}
             >
-              Purge
-            </Button>
+              {job.Type}
+            </Typography>
+            {job.Periodic && (
+              <Typography variant="caption" sx={{ color: 'info.main', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Icon icon="mdi:calendar-clock" width={14} />
+                periodic
+              </Typography>
+            )}
+            {job.ParameterizedJob && (
+              <Typography variant="caption" sx={{ color: 'secondary.main', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Icon icon="mdi:send" width={14} />
+                parameterized
+              </Typography>
+            )}
+            {hasChildren && (
+              <Typography variant="caption" sx={{ color: 'info.main' }}>
+                {childJobs.length} children
+              </Typography>
+            )}
           </Box>
         </Box>
 
-        {actionError && (
-          <Box
-            sx={{
-              mt: 2,
-              p: 1.5,
-              borderRadius: 1,
-              backgroundColor: alpha(theme.palette.error.main, 0.1),
-            }}
+        {/* Actions - compact */}
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Tooltip title="Refresh">
+            <IconButton onClick={loadJob} size="small" sx={{ p: 0.75 }}>
+              <Icon icon="mdi:refresh" width={18} />
+            </IconButton>
+          </Tooltip>
+          {job.Status !== 'dead' && (
+            <Button
+              onClick={() => setStopDialogOpen(true)}
+              size="small"
+              color="warning"
+              sx={{ minWidth: 'auto', px: 1.5, py: 0.5, fontSize: '0.75rem' }}
+            >
+              Stop
+            </Button>
+          )}
+          <Button
+            onClick={() => setPurgeDialogOpen(true)}
+            size="small"
+            color="error"
+            sx={{ minWidth: 'auto', px: 1.5, py: 0.5, fontSize: '0.75rem' }}
           >
-            <Typography color="error" variant="body2">
-              {actionError}
+            Purge
+          </Button>
+        </Box>
+      </Box>
+
+      {actionError && (
+        <Box sx={{ mb: 2, p: 1, borderRadius: 1, backgroundColor: alpha(theme.palette.error.main, 0.1) }}>
+          <Typography color="error" variant="caption">{actionError}</Typography>
+        </Box>
+      )}
+
+      {/* Compact Stats Bar */}
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 4,
+          mb: 2,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <StatItem
+          label="Task Groups"
+          value={job.TaskGroups?.length || 0}
+          color={theme.palette.primary.main}
+        />
+        <StatItem
+          label="Running"
+          value={runningAllocs}
+          color={runningAllocs > 0 ? colors.success : undefined}
+          subValue={allocations.length > 0 ? `of ${allocations.length}` : undefined}
+        />
+        <StatItem
+          label="Pending"
+          value={pendingAllocs}
+          color={pendingAllocs > 0 ? colors.pending : undefined}
+        />
+        <StatItem
+          label="Failed"
+          value={failedAllocs}
+          color={failedAllocs > 0 ? colors.error : undefined}
+        />
+        {deployments.length > 0 && (
+          <Box sx={{ ml: 'auto', borderLeft: `1px solid ${theme.palette.divider}`, pl: 3 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', mb: 0.25 }}>
+              Deployment
             </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <MinimalStatus status={deployments[0].Status || 'unknown'} />
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontFamily: 'monospace', fontSize: '0.65rem' }}>
+                v{deployments[0].JobVersion}
+              </Typography>
+            </Box>
           </Box>
         )}
-      </Paper>
+      </Box>
 
-      {/* Summary stats */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard
-            icon="mdi:layers-triple"
-            label="Task Groups"
-            value={job.TaskGroups?.length || 0}
-            color={theme.palette.primary.main}
-          />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard
-            icon="mdi:check-circle"
-            label="Running"
-            value={runningAllocs}
-            color={theme.palette.success.main}
-            subValue={`of ${allocations.length} allocations`}
-          />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard
-            icon="mdi:clock-outline"
-            label="Pending"
-            value={pendingAllocs}
-            color={theme.palette.warning.main}
-          />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 3 }}>
-          <StatCard
-            icon="mdi:alert-circle"
-            label="Failed"
-            value={failedAllocs}
-            color={theme.palette.error.main}
-          />
-        </Grid>
-      </Grid>
+      {/* Placement failures - compact */}
+      <PlacementFailuresAlert failures={placementFailures} />
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0 }}>
-        <Tabs value={tabValue} onChange={handleTabChange}>
+      {/* Tabs - compact */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          sx={{
+            minHeight: 36,
+            '& .MuiTab-root': { minHeight: 36, py: 0.5, px: 1.5, fontSize: '0.8rem' },
+          }}
+        >
           <Tab
             label="Overview"
-            icon={<Icon icon="mdi:view-dashboard-outline" width={18} />}
+            icon={<Icon icon="mdi:view-dashboard-outline" width={16} />}
             iconPosition="start"
-            sx={{ minHeight: 48 }}
           />
           <Tab
-            label="Task Groups"
-            icon={<Icon icon="mdi:layers-triple" width={18} />}
+            label={`Task Groups (${job.TaskGroups?.length || 0})`}
+            icon={<Icon icon="mdi:layers-triple" width={16} />}
             iconPosition="start"
-            sx={{ minHeight: 48 }}
           />
           <Tab
             label={`Allocations (${allocations.length})`}
-            icon={<Icon icon="mdi:cube-outline" width={18} />}
+            icon={<Icon icon="mdi:cube-outline" width={16} />}
             iconPosition="start"
-            sx={{ minHeight: 48 }}
           />
           {hasChildren && (
             <Tab
               label={`Children (${childJobs.length})`}
-              icon={<Icon icon="mdi:file-tree" width={18} />}
+              icon={<Icon icon="mdi:file-tree" width={16} />}
               iconPosition="start"
-              sx={{ minHeight: 48 }}
             />
           )}
           <Tab
             label="Definition"
-            icon={<Icon icon="mdi:code-json" width={18} />}
+            icon={<Icon icon="mdi:code-json" width={16} />}
             iconPosition="start"
-            sx={{ minHeight: 48 }}
           />
         </Tabs>
       </Box>
 
       {/* Overview Tab */}
       <TabPanel value={tabValue} index={0}>
-        <Grid container spacing={3}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
           {/* Details */}
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600 }}>
-              DETAILS
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1, display: 'block' }}>
+              Details
             </Typography>
-            <Paper
-              elevation={0}
-              sx={{ p: 2.5, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}
-            >
-              <DetailRow label="ID" value={job.ID} mono />
-              <DetailRow label="Name" value={job.Name} />
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 1, border: `1px solid ${theme.palette.divider}` }}>
+              <DetailRow label="ID" value={<Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>{job.ID}</Typography>} />
               <DetailRow label="Namespace" value={job.Namespace} />
-              <DetailRow label="Type" value={<Chip size="small" label={job.Type} />} />
-              <DetailRow label="Status" value={<StatusChip status={job.Status} />} />
+              <DetailRow label="Type" value={job.Type} />
+              <DetailRow label="Status" value={<MinimalStatus status={job.Status} />} />
               <DetailRow label="Priority" value={job.Priority} />
               <DetailRow label="Datacenters" value={job.Datacenters?.join(', ') || '—'} />
-              <DetailRow label="Version" value={job.Version} />
-              <DetailRow
-                label="Stable"
-                value={
-                  <Chip
-                    size="small"
-                    label={job.Stable ? 'Yes' : 'No'}
-                    color={job.Stable ? 'success' : 'default'}
-                  />
-                }
-              />
+              <DetailRow label="Stable" value={job.Stable ? 'Yes' : 'No'} />
               {job.ParentID && (
                 <DetailRow
-                  label="Parent Job"
+                  label="Parent"
                   value={
                     <Link
                       component={RouterLink}
-                      to={createRouteURL('nomadJob', {
-                        name: job.ParentID,
-                        namespace: job.Namespace,
-                      })}
+                      to={createRouteURL('nomadJob', { name: job.ParentID, namespace: job.Namespace })}
+                      sx={{ fontSize: '0.75rem' }}
                     >
                       {job.ParentID}
                     </Link>
@@ -960,122 +979,87 @@ export default function JobDetails() {
               )}
               <DetailRow
                 label="Submitted"
-                value={
-                  job.SubmitTime ? <DateLabel date={new Date(job.SubmitTime / 1000000)} /> : '—'
-                }
+                value={job.SubmitTime ? <DateLabel date={new Date(job.SubmitTime / 1000000)} /> : '—'}
               />
             </Paper>
-          </Grid>
+          </Box>
 
           {/* Deployment */}
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600 }}>
-              {deployments.length > 0 ? 'LATEST DEPLOYMENT' : 'DEPLOYMENT'}
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1, display: 'block' }}>
+              {deployments.length > 0 ? 'Latest Deployment' : 'Deployment'}
             </Typography>
             {deployments.length > 0 ? (
-              <>
-                <DeploymentCard deployment={deployments[0]} />
+              <Paper elevation={0} sx={{ p: 1.5, borderRadius: 1, border: `1px solid ${theme.palette.divider}` }}>
+                <DeploymentProgress deployment={deployments[0]} />
                 {deployments.length > 1 && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    + {deployments.length - 1} previous deployment{deployments.length > 2 ? 's' : ''}
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', mt: 1, display: 'block' }}>
+                    + {deployments.length - 1} previous
                   </Typography>
                 )}
-              </>
+              </Paper>
             ) : (
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 3,
-                  borderRadius: 2,
-                  border: `1px solid ${theme.palette.divider}`,
-                  textAlign: 'center',
-                }}
-              >
-                <Icon icon="mdi:rocket-launch-outline" width={32} color={theme.palette.text.disabled} />
-                <Typography color="text.secondary" sx={{ mt: 1 }}>
-                  No deployments
-                </Typography>
+              <Paper elevation={0} sx={{ p: 2, borderRadius: 1, border: `1px solid ${theme.palette.divider}`, textAlign: 'center' }}>
+                <Typography variant="caption" sx={{ color: 'text.disabled' }}>No deployments</Typography>
               </Paper>
             )}
-          </Grid>
+          </Box>
 
           {/* Periodic config */}
           {job.Periodic && (
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600 }}>
-                PERIODIC CONFIGURATION
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1, display: 'block' }}>
+                Periodic Config
               </Typography>
-              <Paper
-                elevation={0}
-                sx={{ p: 2.5, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}
-              >
+              <Paper elevation={0} sx={{ p: 1.5, borderRadius: 1, border: `1px solid ${theme.palette.divider}` }}>
                 <DetailRow label="Enabled" value={job.Periodic.Enabled ? 'Yes' : 'No'} />
-                <DetailRow label="Spec" value={job.Periodic.Spec || '—'} mono />
-                <DetailRow label="Spec Type" value={job.Periodic.SpecType || 'cron'} />
+                <DetailRow label="Spec" value={<Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>{job.Periodic.Spec || '—'}</Typography>} />
+                <DetailRow label="Type" value={job.Periodic.SpecType || 'cron'} />
                 <DetailRow label="Prohibit Overlap" value={job.Periodic.ProhibitOverlap ? 'Yes' : 'No'} />
                 <DetailRow label="Time Zone" value={job.Periodic.TimeZone || 'UTC'} />
               </Paper>
-            </Grid>
+            </Box>
           )}
 
           {/* Parameterized config */}
           {job.ParameterizedJob && (
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600 }}>
-                PARAMETERIZED CONFIGURATION
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1, display: 'block' }}>
+                Parameterized Config
               </Typography>
-              <Paper
-                elevation={0}
-                sx={{ p: 2.5, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}
-              >
+              <Paper elevation={0} sx={{ p: 1.5, borderRadius: 1, border: `1px solid ${theme.palette.divider}` }}>
                 <DetailRow label="Payload" value={job.ParameterizedJob.Payload || 'none'} />
-                <DetailRow
-                  label="Meta Required"
-                  value={job.ParameterizedJob.MetaRequired?.join(', ') || '—'}
-                />
-                <DetailRow
-                  label="Meta Optional"
-                  value={job.ParameterizedJob.MetaOptional?.join(', ') || '—'}
-                />
+                <DetailRow label="Meta Required" value={job.ParameterizedJob.MetaRequired?.join(', ') || '—'} />
+                <DetailRow label="Meta Optional" value={job.ParameterizedJob.MetaOptional?.join(', ') || '—'} />
               </Paper>
-            </Grid>
+            </Box>
           )}
 
           {/* Metadata */}
           {metaEntries.length > 0 && (
-            <Grid size={12}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  METADATA ({metaEntries.length})
+            <Box sx={{ gridColumn: { md: '1 / -1' } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Metadata ({metaEntries.length})
                 </Typography>
                 <Button
                   size="small"
                   onClick={() => setMetaExpanded(!metaExpanded)}
-                  endIcon={<Icon icon={metaExpanded ? 'mdi:chevron-up' : 'mdi:chevron-down'} width={18} />}
+                  sx={{ minWidth: 'auto', px: 1, py: 0.25, fontSize: '0.7rem' }}
                 >
                   {metaExpanded ? 'Collapse' : 'Expand'}
                 </Button>
               </Box>
 
               <Collapse in={metaExpanded}>
-                <Paper
-                  elevation={0}
-                  sx={{ borderRadius: 2, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}
-                >
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+                <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
                     {metaEntries.sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => (
-                      <Box
-                        key={key}
-                        sx={{
-                          p: 2,
-                          borderBottom: `1px solid ${theme.palette.divider}`,
-                          borderRight: `1px solid ${theme.palette.divider}`,
-                        }}
-                      >
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      <Box key={key} sx={{ p: 1.5, borderBottom: `1px solid ${theme.palette.divider}`, borderRight: `1px solid ${theme.palette.divider}` }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', display: 'block', mb: 0.25 }}>
                           {key}
                         </Typography>
-                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>
                           {value || '—'}
                         </Typography>
                       </Box>
@@ -1085,49 +1069,69 @@ export default function JobDetails() {
               </Collapse>
 
               {!metaExpanded && (
-                <Paper
-                  elevation={0}
-                  sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexWrap: 'wrap', gap: 1 }}
-                >
-                  {metaEntries.slice(0, 6).map(([key]) => (
-                    <Chip key={key} size="small" label={key} sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }} />
+                <Paper elevation={0} sx={{ p: 1, borderRadius: 1, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {metaEntries.slice(0, 8).map(([key]) => (
+                    <Chip key={key} size="small" label={key} sx={{ fontFamily: 'monospace', fontSize: '0.65rem', height: 20 }} />
                   ))}
-                  {metaEntries.length > 6 && (
+                  {metaEntries.length > 8 && (
                     <Chip
                       size="small"
-                      label={`+${metaEntries.length - 6} more`}
+                      label={`+${metaEntries.length - 8}`}
                       color="primary"
                       variant="outlined"
                       onClick={() => setMetaExpanded(true)}
-                      sx={{ cursor: 'pointer' }}
+                      sx={{ cursor: 'pointer', fontSize: '0.65rem', height: 20 }}
                     />
                   )}
                 </Paper>
               )}
-            </Grid>
+            </Box>
           )}
-        </Grid>
+        </Box>
       </TabPanel>
 
-      {/* Task Groups Tab */}
+      {/* Task Groups Tab - Dense Table */}
       <TabPanel value={tabValue} index={1}>
-        {job.TaskGroups?.map(taskGroup => (
-          <TaskGroupCard key={taskGroup.Name} taskGroup={taskGroup} allocations={allocations} />
-        ))}
+        <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+          {/* Header */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: '24px 1fr 100px 140px 100px 80px',
+              alignItems: 'center',
+              gap: 2,
+              py: 0.75,
+              px: 1.5,
+              backgroundColor: alpha(theme.palette.text.primary, 0.02),
+              borderBottom: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <Box />
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase' }}>Name</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', textAlign: 'center' }}>Count</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', textAlign: 'right' }}>Allocations</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', textAlign: 'right' }}>CPU</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', textAlign: 'right' }}>Memory</Typography>
+          </Box>
+          {/* Rows */}
+          {job.TaskGroups?.map(taskGroup => (
+            <TaskGroupRow
+              key={taskGroup.Name}
+              taskGroup={taskGroup}
+              allocations={allocations}
+              namespace={job.Namespace}
+              jobId={job.ID}
+            />
+          ))}
+        </Paper>
       </TabPanel>
 
       {/* Allocations Tab */}
       <TabPanel value={tabValue} index={2}>
-        <Paper
-          elevation={0}
-          sx={{ borderRadius: 2, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}
-        >
+        <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
           {allocations.length === 0 ? (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Icon icon="mdi:cube-off-outline" width={48} color={theme.palette.text.disabled} />
-              <Typography color="text.secondary" sx={{ mt: 2 }}>
-                No allocations
-              </Typography>
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography variant="caption" sx={{ color: 'text.disabled' }}>No allocations</Typography>
             </Box>
           ) : (
             <SimpleTable
@@ -1138,7 +1142,7 @@ export default function JobDetails() {
                     <Link
                       component={RouterLink}
                       to={createRouteURL('nomadAllocation', { id: alloc.ID })}
-                      sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                      sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}
                     >
                       {alloc.ID.substring(0, 8)}
                     </Link>
@@ -1148,14 +1152,14 @@ export default function JobDetails() {
                 {
                   label: 'Node',
                   getter: (alloc: AllocationListStub) => (
-                    <Link component={RouterLink} to={createRouteURL('nomadNode', { id: alloc.NodeID })}>
+                    <Link component={RouterLink} to={createRouteURL('nomadNode', { id: alloc.NodeID })} sx={{ fontSize: '0.8rem' }}>
                       {alloc.NodeName}
                     </Link>
                   ),
                 },
                 {
                   label: 'Status',
-                  getter: (alloc: AllocationListStub) => <StatusChip status={alloc.ClientStatus} />,
+                  getter: (alloc: AllocationListStub) => <MinimalStatus status={alloc.ClientStatus} />,
                 },
                 {
                   label: 'Created',
@@ -1173,10 +1177,7 @@ export default function JobDetails() {
       {/* Child Jobs Tab */}
       {hasChildren && (
         <TabPanel value={tabValue} index={3}>
-          <Paper
-            elevation={0}
-            sx={{ borderRadius: 2, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}
-          >
+          <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
             <SimpleTable
               columns={[
                 {
@@ -1185,6 +1186,7 @@ export default function JobDetails() {
                     <Link
                       component={RouterLink}
                       to={createRouteURL('nomadJob', { name: child.ID, namespace: child.Namespace })}
+                      sx={{ fontSize: '0.8rem' }}
                     >
                       {child.ID.split('/').pop() || child.Name}
                     </Link>
@@ -1192,11 +1194,13 @@ export default function JobDetails() {
                 },
                 {
                   label: 'Type',
-                  getter: (child: JobListStub) => <Chip label={child.Type} size="small" variant="outlined" />,
+                  getter: (child: JobListStub) => (
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>{child.Type}</Typography>
+                  ),
                 },
                 {
                   label: 'Status',
-                  getter: (child: JobListStub) => <StatusChip status={child.Status} />,
+                  getter: (child: JobListStub) => <MinimalStatus status={child.Status} />,
                 },
                 {
                   label: 'Submitted',
@@ -1212,33 +1216,28 @@ export default function JobDetails() {
 
       {/* Definition Tab */}
       <TabPanel value={tabValue} index={hasChildren ? 4 : 3}>
-        <Paper
-          elevation={0}
-          sx={{
-            borderRadius: 2,
-            border: `1px solid ${theme.palette.divider}`,
-            overflow: 'hidden',
-          }}
-        >
+        <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
           <Box
             sx={{
-              p: 2,
-              backgroundColor: alpha(theme.palette.background.default, 0.5),
+              px: 1.5,
+              py: 0.75,
+              backgroundColor: alpha(theme.palette.text.primary, 0.02),
               borderBottom: `1px solid ${theme.palette.divider}`,
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
             }}
           >
-            <Typography variant="subtitle2" fontWeight={600}>
+            <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
               Job Definition (JSON)
             </Typography>
-            <Tooltip title="Copy to clipboard">
+            <Tooltip title="Copy">
               <IconButton
                 size="small"
                 onClick={() => navigator.clipboard.writeText(JSON.stringify(job, null, 2))}
+                sx={{ p: 0.5 }}
               >
-                <Icon icon="mdi:content-copy" width={18} />
+                <Icon icon="mdi:content-copy" width={14} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -1247,35 +1246,29 @@ export default function JobDetails() {
       </TabPanel>
 
       {/* Dialogs */}
-      <Dialog open={stopDialogOpen} onClose={() => setStopDialogOpen(false)}>
-        <DialogTitle>Stop Job</DialogTitle>
+      <Dialog open={stopDialogOpen} onClose={() => setStopDialogOpen(false)} maxWidth="xs">
+        <DialogTitle sx={{ fontSize: '1rem', pb: 1 }}>Stop Job</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            Are you sure you want to stop the job "{job.Name}"? This will stop all running
-            allocations but keep the job definition.
+          <DialogContentText sx={{ fontSize: '0.85rem' }}>
+            Stop all running allocations for "{job.Name}"? The job definition will be kept.
           </DialogContentText>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setStopDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleStopJob} color="warning" variant="contained">
-            Stop
-          </Button>
+        <DialogActions sx={{ px: 2, pb: 2 }}>
+          <Button onClick={() => setStopDialogOpen(false)} size="small">Cancel</Button>
+          <Button onClick={handleStopJob} color="warning" variant="contained" size="small">Stop</Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={purgeDialogOpen} onClose={() => setPurgeDialogOpen(false)}>
-        <DialogTitle>Purge Job</DialogTitle>
+      <Dialog open={purgeDialogOpen} onClose={() => setPurgeDialogOpen(false)} maxWidth="xs">
+        <DialogTitle sx={{ fontSize: '1rem', pb: 1 }}>Purge Job</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            Are you sure you want to purge the job "{job.Name}"? This will permanently delete
-            the job and all its history. This action cannot be undone.
+          <DialogContentText sx={{ fontSize: '0.85rem' }}>
+            Permanently delete "{job.Name}" and all history? This cannot be undone.
           </DialogContentText>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPurgeDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handlePurgeJob} color="error" variant="contained">
-            Purge
-          </Button>
+        <DialogActions sx={{ px: 2, pb: 2 }}>
+          <Button onClick={() => setPurgeDialogOpen(false)} size="small">Cancel</Button>
+          <Button onClick={handlePurgeJob} color="error" variant="contained" size="small">Purge</Button>
         </DialogActions>
       </Dialog>
     </Box>

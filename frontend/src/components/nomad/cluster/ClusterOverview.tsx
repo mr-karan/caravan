@@ -1,71 +1,85 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import { Icon } from '@iconify/react';
 import {
+  alpha,
   Box,
-  Card,
-  CardContent,
-  Grid,
   IconButton,
   Link,
+  Paper,
+  Skeleton,
   Tooltip,
   Typography,
+  useTheme,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import WorkIcon from '@mui/icons-material/Work';
-import StorageIcon from '@mui/icons-material/Storage';
-import AssignmentIcon from '@mui/icons-material/Assignment';
 import { listJobs, listNodes, listAllocations } from '../../../lib/nomad/api';
 import { JobListStub, NodeListStub, AllocationListStub } from '../../../lib/nomad/types';
-import { SectionBox, SimpleTable, Loader } from '../../common';
+import { SimpleTable } from '../../common';
 import { DateLabel } from '../../common/Label';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
-import { StatusChip } from '../statusStyles';
+import { MinimalStatus, minimalStatusColors } from '../statusStyles';
 
-interface StatCardProps {
-  title: string;
-  value: number | string;
-  icon: React.ReactNode;
-  color?: string;
-  subtitle?: string;
-}
-
-function StatCard({ title, value, icon, color, subtitle }: StatCardProps) {
+// Compact stat item
+function StatItem({
+  label,
+  value,
+  color,
+  subValues,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  subValues?: { label: string; value: number; color?: string }[];
+}) {
+  const theme = useTheme();
   return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Box
-            sx={{
-              p: 1.5,
-              borderRadius: 2,
-              bgcolor: color || 'primary.main',
-              color: 'white',
-              display: 'flex',
-            }}
-          >
-            {icon}
-          </Box>
-          <Box>
-            <Typography variant="h4" component="div">
-              {value}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {title}
-            </Typography>
-            {subtitle && (
-              <Typography variant="caption" color="text.secondary">
-                {subtitle}
+    <Box sx={{ minWidth: 120 }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: 'text.secondary',
+          fontSize: '0.65rem',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          display: 'block',
+          mb: 0.25,
+        }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: '1.5rem',
+          fontWeight: 600,
+          color: color,
+          lineHeight: 1.2,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {value}
+      </Typography>
+      {subValues && subValues.length > 0 && (
+        <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
+          {subValues.map((sv, idx) => (
+            <Box key={idx} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: sv.color || 'text.secondary', fontWeight: 500, fontSize: '0.7rem' }}>
+                {sv.value}
               </Typography>
-            )}
-          </Box>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.6rem' }}>
+                {sv.label}
+              </Typography>
+            </Box>
+          ))}
         </Box>
-      </CardContent>
-    </Card>
+      )}
+    </Box>
   );
 }
 
 export default function ClusterOverview() {
-  
+  const theme = useTheme();
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
+
   const [jobs, setJobs] = useState<JobListStub[]>([]);
   const [nodes, setNodes] = useState<NodeListStub[]>([]);
   const [allocations, setAllocations] = useState<AllocationListStub[]>([]);
@@ -96,247 +110,235 @@ export default function ClusterOverview() {
   }, [loadData]);
 
   if (loading) {
-    return <Loader title="Loading cluster overview..." />;
+    return (
+      <Box sx={{ p: 2 }}>
+        <Skeleton variant="rectangular" height={80} sx={{ borderRadius: 1, mb: 2 }} />
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+          <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
+          <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 1 }} />
+        </Box>
+      </Box>
+    );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Typography color="error">Error loading cluster data: {error.message}</Typography>
+      <Box sx={{ p: 2 }}>
+        <Typography color="error" variant="body2">Error: {error.message}</Typography>
       </Box>
     );
   }
 
   // Calculate stats
-  const runningJobs = jobs.filter((j) => j.Status === 'running').length;
-  const pendingJobs = jobs.filter((j) => j.Status === 'pending').length;
-  const deadJobs = jobs.filter((j) => j.Status === 'dead').length;
+  const runningJobs = jobs.filter(j => j.Status === 'running').length;
+  const pendingJobs = jobs.filter(j => j.Status === 'pending').length;
+  const deadJobs = jobs.filter(j => j.Status === 'dead').length;
 
-  const readyNodes = nodes.filter((n) => n.Status === 'ready').length;
-  const downNodes = nodes.filter((n) => n.Status !== 'ready').length;
+  const readyNodes = nodes.filter(n => n.Status === 'ready').length;
+  const downNodes = nodes.filter(n => n.Status !== 'ready').length;
 
-  const runningAllocs = allocations.filter((a) => a.ClientStatus === 'running').length;
-  const pendingAllocs = allocations.filter((a) => a.ClientStatus === 'pending').length;
-  const failedAllocs = allocations.filter((a) => ['failed', 'lost'].includes(a.ClientStatus)).length;
+  const runningAllocs = allocations.filter(a => a.ClientStatus === 'running').length;
+  const pendingAllocs = allocations.filter(a => a.ClientStatus === 'pending').length;
+  const failedAllocs = allocations.filter(a => ['failed', 'lost'].includes(a.ClientStatus)).length;
 
-  // Recent jobs (last 5)
-  const recentJobs = [...jobs]
-    .sort((a, b) => (b.SubmitTime || 0) - (a.SubmitTime || 0))
-    .slice(0, 5);
-
-  // Recent allocations (last 5)
-  const recentAllocations = [...allocations]
-    .sort((a, b) => (b.CreateTime || 0) - (a.CreateTime || 0))
-    .slice(0, 5);
+  // Recent data
+  const recentJobs = [...jobs].sort((a, b) => (b.SubmitTime || 0) - (a.SubmitTime || 0)).slice(0, 5);
+  const recentAllocations = [...allocations].sort((a, b) => (b.CreateTime || 0) - (a.CreateTime || 0)).slice(0, 5);
 
   return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, p: 2 }}>
-        <Typography variant="h4">Cluster Overview</Typography>
+    <Box sx={{ pb: 3 }}>
+      {/* Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 2,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+          Cluster Overview
+        </Typography>
         <Tooltip title="Refresh">
-          <IconButton onClick={loadData}>
-            <RefreshIcon />
+          <IconButton onClick={loadData} size="small" sx={{ p: 0.75 }}>
+            <Icon icon="mdi:refresh" width={18} />
           </IconButton>
         </Tooltip>
       </Box>
 
-      <Grid container spacing={3} sx={{ mb: 3, px: 2 }}>
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <StatCard
-            title="Jobs"
-            value={jobs.length}
-            icon={<WorkIcon />}
-            color="#1976d2"
-            subtitle={`${runningJobs} running, ${pendingJobs} pending, ${deadJobs} dead`}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <StatCard
-            title="Nodes"
-            value={nodes.length}
-            icon={<StorageIcon />}
-            color="#388e3c"
-            subtitle={`${readyNodes} ready, ${downNodes} down`}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <StatCard
-            title="Allocations"
-            value={allocations.length}
-            icon={<AssignmentIcon />}
-            color="#f57c00"
-            subtitle={`${runningAllocs} running, ${pendingAllocs} pending, ${failedAllocs} failed`}
-          />
-        </Grid>
-      </Grid>
+      {/* Compact Stats Bar */}
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 5,
+          mb: 3,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <StatItem
+          label="Jobs"
+          value={jobs.length}
+          color={theme.palette.primary.main}
+          subValues={[
+            { label: 'running', value: runningJobs, color: colors.success },
+            { label: 'pending', value: pendingJobs, color: colors.pending },
+            { label: 'dead', value: deadJobs },
+          ]}
+        />
+        <StatItem
+          label="Nodes"
+          value={nodes.length}
+          color={colors.success}
+          subValues={[
+            { label: 'ready', value: readyNodes, color: colors.success },
+            { label: 'down', value: downNodes, color: downNodes > 0 ? colors.error : undefined },
+          ]}
+        />
+        <StatItem
+          label="Allocations"
+          value={allocations.length}
+          color={theme.palette.warning.main}
+          subValues={[
+            { label: 'running', value: runningAllocs, color: colors.success },
+            { label: 'pending', value: pendingAllocs, color: colors.pending },
+            { label: 'failed', value: failedAllocs, color: failedAllocs > 0 ? colors.error : undefined },
+          ]}
+        />
+      </Box>
 
-      <Grid container spacing={3} sx={{ px: 2 }}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <SectionBox
-            title="Recent Jobs"
-            headerProps={{
-              actions: [
-                <Link
-                  key="view-all"
-                  component={RouterLink}
-                  to={createRouteURL('nomadJobs')}
-                  sx={{ textDecoration: 'none' }}
-                >
-                  View All
-                </Link>,
-              ],
-            }}
-          >
+      {/* Two column layout */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+        {/* Recent Jobs */}
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Recent Jobs
+            </Typography>
+            <Link component={RouterLink} to={createRouteURL('nomadJobs')} sx={{ fontSize: '0.7rem' }}>
+              View All
+            </Link>
+          </Box>
+          <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
             <SimpleTable
               columns={[
                 {
                   label: 'Name',
                   getter: (job: JobListStub) => (
-                    <Link
-                      component={RouterLink}
-                      to={createRouteURL('nomadJob', {
-                        name: job.ID,
-                        namespace: job.Namespace,
-                      })}
-                    >
+                    <Link component={RouterLink} to={createRouteURL('nomadJob', { name: job.ID, namespace: job.Namespace })} sx={{ fontSize: '0.8rem' }}>
                       {job.Name}
                     </Link>
                   ),
                 },
                 {
                   label: 'Status',
-                  getter: (job: JobListStub) => (
-                    <StatusChip status={job.Status} />
-                  ),
+                  getter: (job: JobListStub) => <MinimalStatus status={job.Status} />,
                 },
                 {
                   label: 'Submitted',
-                  getter: (job: JobListStub) =>
-                    job.SubmitTime ? (
-                      <DateLabel date={new Date(job.SubmitTime / 1000000)} />
-                    ) : (
-                      '-'
-                    ),
+                  getter: (job: JobListStub) => job.SubmitTime ? <DateLabel date={new Date(job.SubmitTime / 1000000)} format="mini" /> : '—',
                 },
               ]}
               data={recentJobs}
-              emptyMessage="No jobs found"
+              emptyMessage="No jobs"
             />
-          </SectionBox>
-        </Grid>
+          </Paper>
+        </Box>
 
-        <Grid size={{ xs: 12, md: 6 }}>
-          <SectionBox
-            title="Recent Allocations"
-            headerProps={{
-              actions: [
-                <Link
-                  key="view-all"
-                  component={RouterLink}
-                  to={createRouteURL('nomadAllocations')}
-                  sx={{ textDecoration: 'none' }}
-                >
-                  View All
-                </Link>,
-              ],
-            }}
-          >
+        {/* Recent Allocations */}
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Recent Allocations
+            </Typography>
+          </Box>
+          <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
             <SimpleTable
               columns={[
                 {
                   label: 'ID',
                   getter: (alloc: AllocationListStub) => (
-                    <Link
-                      component={RouterLink}
-                      to={createRouteURL('nomadAllocation', { id: alloc.ID })}
-                    >
+                    <Link component={RouterLink} to={createRouteURL('nomadAllocation', { id: alloc.ID })} sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
                       {alloc.ID.substring(0, 8)}
                     </Link>
                   ),
                 },
                 {
                   label: 'Job',
-                  getter: (alloc: AllocationListStub) => alloc.JobID,
+                  getter: (alloc: AllocationListStub) => (
+                    <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>{alloc.JobID}</Typography>
+                  ),
                 },
                 {
                   label: 'Status',
-                  getter: (alloc: AllocationListStub) => (
-                    <StatusChip status={alloc.ClientStatus} />
-                  ),
+                  getter: (alloc: AllocationListStub) => <MinimalStatus status={alloc.ClientStatus} />,
                 },
               ]}
               data={recentAllocations}
-              emptyMessage="No allocations found"
+              emptyMessage="No allocations"
             />
-          </SectionBox>
-        </Grid>
+          </Paper>
+        </Box>
+      </Box>
 
-        <Grid size={12}>
-          <SectionBox
-            title="Nodes"
-            headerProps={{
-              actions: [
-                <Link
-                  key="view-all"
-                  component={RouterLink}
-                  to={createRouteURL('nomadNodes')}
-                  sx={{ textDecoration: 'none' }}
-                >
-                  View All
-                </Link>,
-              ],
-            }}
-          >
-            <SimpleTable
-              columns={[
-                {
-                  label: 'Name',
-                  getter: (node: NodeListStub) => (
-                    <Link
-                      component={RouterLink}
-                      to={createRouteURL('nomadNode', { id: node.ID })}
-                    >
-                      {node.Name}
-                    </Link>
-                  ),
+      {/* Nodes Table */}
+      <Box sx={{ mt: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Nodes
+          </Typography>
+          <Link component={RouterLink} to={createRouteURL('nomadNodes')} sx={{ fontSize: '0.7rem' }}>
+            View All
+          </Link>
+        </Box>
+        <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+          <SimpleTable
+            columns={[
+              {
+                label: 'Name',
+                getter: (node: NodeListStub) => (
+                  <Link component={RouterLink} to={createRouteURL('nomadNode', { id: node.ID })} sx={{ fontSize: '0.8rem' }}>
+                    {node.Name}
+                  </Link>
+                ),
+              },
+              { label: 'Datacenter', getter: (node: NodeListStub) => node.Datacenter },
+              {
+                label: 'Address',
+                getter: (node: NodeListStub) => (
+                  <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>{node.Address}</Typography>
+                ),
+              },
+              {
+                label: 'Status',
+                getter: (node: NodeListStub) => (
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <MinimalStatus status={node.Status} />
+                    {node.Drain && <Typography variant="caption" sx={{ color: colors.pending, fontSize: '0.65rem' }}>draining</Typography>}
+                    {node.SchedulingEligibility === 'ineligible' && <Typography variant="caption" sx={{ color: colors.error, fontSize: '0.65rem' }}>ineligible</Typography>}
+                  </Box>
+                ),
+              },
+              {
+                label: 'Resources',
+                getter: (node: NodeListStub) => {
+                  const cpu = node.NodeResources?.Cpu?.CpuShares || 0;
+                  const mem = node.NodeResources?.Memory?.MemoryMB || 0;
+                  return (
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.65rem' }}>
+                      {cpu} MHz · {mem} MB
+                    </Typography>
+                  );
                 },
-                {
-                  label: 'Datacenter',
-                  getter: (node: NodeListStub) => node.Datacenter,
-                },
-                {
-                  label: 'Address',
-                  getter: (node: NodeListStub) => node.Address,
-                },
-                {
-                  label: 'Status',
-                  getter: (node: NodeListStub) => (
-                    <Box display="flex" gap={0.5} flexWrap="wrap">
-                      <StatusChip status={node.Status} />
-                      {node.Drain && (
-                        <StatusChip status="draining" showIcon={false} />
-                      )}
-                      {node.SchedulingEligibility === 'ineligible' && (
-                        <StatusChip status="ineligible" label="Ineligible" showIcon={false} />
-                      )}
-                    </Box>
-                  ),
-                },
-                {
-                  label: 'Resources',
-                  getter: (node: NodeListStub) => {
-                    const cpu = node.NodeResources?.Cpu?.CpuShares || 0;
-                    const mem = node.NodeResources?.Memory?.MemoryMB || 0;
-                    return `CPU: ${cpu} MHz, Mem: ${mem} MB`;
-                  },
-                },
-              ]}
-              data={nodes}
-              emptyMessage="No nodes found"
-            />
-          </SectionBox>
-        </Grid>
-      </Grid>
-    </>
+              },
+            ]}
+            data={nodes}
+            emptyMessage="No nodes"
+          />
+        </Paper>
+      </Box>
+    </Box>
   );
 }

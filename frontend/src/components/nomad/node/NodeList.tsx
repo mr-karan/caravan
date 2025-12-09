@@ -2,126 +2,27 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Link,
-  Chip,
   Box,
   IconButton,
   Tooltip,
   Typography,
   TextField,
   InputAdornment,
+  Paper,
+  Skeleton,
+  alpha,
+  useTheme,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SearchIcon from '@mui/icons-material/Search';
-import StorageIcon from '@mui/icons-material/Storage';
-import DnsIcon from '@mui/icons-material/Dns';
-import { SectionBox, SimpleTable, Loader, ErrorPage } from '../../common';
+import { Icon } from '@iconify/react';
+import { SimpleTable, ErrorPage } from '../../common';
 import { listNodes } from '../../../lib/nomad/api';
 import { NodeListStub } from '../../../lib/nomad/types';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
-import { StatusChip, statusColors } from '../statusStyles';
-import { CopyableIP, CopyableId } from '../CopyButton';
-
-// Node role indicator (shows if node is a server/leader based on attributes)
-function NodeRoleChip({ node }: { node: NodeListStub }) {
-  // Note: NodeListStub doesn't include detailed attributes, but we can infer from other data
-  // In a real scenario, you might need to fetch node details or check server members
-  return null; // Will be enhanced when we have more node info
-}
-
-// Get node pool color based on pool name for visual distinction
-function getNodePoolColor(pool: string): string {
-  const colors = [
-    '#1976d2', // blue
-    '#388e3c', // green
-    '#f57c00', // orange
-    '#7b1fa2', // purple
-    '#0097a7', // cyan
-    '#c2185b', // pink
-  ];
-  let hash = 0;
-  for (let i = 0; i < pool.length; i++) {
-    hash = pool.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
-
-// Summary stats for nodes
-interface NodeStats {
-  total: number;
-  ready: number;
-  down: number;
-  draining: number;
-  ineligible: number;
-}
-
-function NodeStatsSummary({ stats }: { stats: NodeStats }) {
-  return (
-    <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-      <Tooltip title="Total nodes">
-        <Chip
-          icon={<StorageIcon sx={{ fontSize: 16 }} />}
-          label={stats.total}
-          size="small"
-          variant="outlined"
-        />
-      </Tooltip>
-      {stats.ready > 0 && (
-        <Tooltip title="Ready nodes">
-          <Chip
-            label={`${stats.ready} ready`}
-            size="small"
-            sx={{
-              backgroundColor: statusColors.success.background,
-              color: statusColors.success.color,
-              border: `1px solid ${statusColors.success.border}`,
-            }}
-          />
-        </Tooltip>
-      )}
-      {stats.down > 0 && (
-        <Tooltip title="Down nodes">
-          <Chip
-            label={`${stats.down} down`}
-            size="small"
-            sx={{
-              backgroundColor: statusColors.error.background,
-              color: statusColors.error.color,
-              border: `1px solid ${statusColors.error.border}`,
-            }}
-          />
-        </Tooltip>
-      )}
-      {stats.draining > 0 && (
-        <Tooltip title="Draining nodes">
-          <Chip
-            label={`${stats.draining} draining`}
-            size="small"
-            sx={{
-              backgroundColor: statusColors.warning.background,
-              color: statusColors.warning.color,
-              border: `1px solid ${statusColors.warning.border}`,
-            }}
-          />
-        </Tooltip>
-      )}
-      {stats.ineligible > 0 && (
-        <Tooltip title="Ineligible for scheduling">
-          <Chip
-            label={`${stats.ineligible} ineligible`}
-            size="small"
-            sx={{
-              backgroundColor: statusColors.cancelled.background,
-              color: statusColors.cancelled.color,
-              border: `1px solid ${statusColors.cancelled.border}`,
-            }}
-          />
-        </Tooltip>
-      )}
-    </Box>
-  );
-}
+import { MinimalStatus, minimalStatusColors } from '../statusStyles';
 
 export default function NodeList() {
+  const theme = useTheme();
+  const colors = theme.palette.mode === 'dark' ? minimalStatusColors.dark : minimalStatusColors.light;
   const [nodes, setNodes] = useState<NodeListStub[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -144,8 +45,7 @@ export default function NodeList() {
     loadNodes();
   }, [loadNodes]);
 
-  // Calculate stats
-  const stats = useMemo<NodeStats>(() => {
+  const stats = useMemo(() => {
     return nodes.reduce(
       (acc, node) => {
         acc.total++;
@@ -159,7 +59,6 @@ export default function NodeList() {
     );
   }, [nodes]);
 
-  // Filter nodes based on search
   const filteredNodes = useMemo(() => {
     if (!searchQuery.trim()) return nodes;
     const query = searchQuery.toLowerCase();
@@ -175,7 +74,12 @@ export default function NodeList() {
   }, [nodes, searchQuery]);
 
   if (loading) {
-    return <Loader title="Loading nodes..." />;
+    return (
+      <Box sx={{ pb: 3 }}>
+        <Skeleton variant="rectangular" height={50} sx={{ borderRadius: 1, mb: 2 }} />
+        <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 1 }} />
+      </Box>
+    );
   }
 
   if (error) {
@@ -183,150 +87,179 @@ export default function NodeList() {
   }
 
   return (
-    <SectionBox
-      title={
-        <Box display="flex" alignItems="center" gap={2}>
-          <Typography variant="h5" component="span">
+    <Box sx={{ pb: 3 }}>
+      {/* Compact Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 2,
+          pb: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
             Nodes
           </Typography>
-          <NodeStatsSummary stats={stats} />
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.8rem' }}>
+            {stats.total}
+          </Typography>
         </Box>
-      }
-      headerProps={{
-        actions: [
-          <TextField
-            key="search"
-            size="small"
-            placeholder="Search nodes..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ minWidth: 200 }}
-          />,
-          <Tooltip key="refresh" title="Refresh">
-            <IconButton onClick={loadNodes} size="small">
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>,
-        ],
-      }}
-    >
-      <SimpleTable
-        columns={[
-          {
-            label: 'Name',
-            getter: (node: NodeListStub) => (
-              <Box>
-                <Link
-                  component={RouterLink}
-                  to={createRouteURL('nomadNode', { id: node.ID })}
-                  sx={{ fontWeight: 500 }}
-                >
-                  {node.Name}
-                </Link>
-                <Typography
-                  variant="caption"
-                  display="block"
-                  color="text.secondary"
-                  sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}
-                >
-                  {node.ID.substring(0, 8)}
-                </Typography>
-              </Box>
-            ),
-          },
-          {
-            label: 'Datacenter',
-            getter: (node: NodeListStub) => (
-              <Chip
-                label={node.Datacenter}
-                size="small"
-                variant="outlined"
-                sx={{ fontWeight: 500 }}
-              />
-            ),
-          },
-          {
-            label: 'Address',
-            getter: (node: NodeListStub) => <CopyableIP ip={node.Address} />,
-          },
-          {
-            label: 'Status',
-            getter: (node: NodeListStub) => (
-              <Box display="flex" gap={0.5} flexWrap="wrap">
-                <StatusChip status={node.Status} />
-                {node.Drain && <StatusChip status="draining" showIcon={false} />}
-                {node.SchedulingEligibility === 'ineligible' && (
-                  <StatusChip status="ineligible" label="Ineligible" showIcon={false} />
-                )}
-              </Box>
-            ),
-          },
-          {
-            label: 'Node Class',
-            getter: (node: NodeListStub) =>
-              node.NodeClass ? (
-                <Chip label={node.NodeClass} size="small" variant="outlined" />
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  -
-                </Typography>
-              ),
-          },
-          {
-            label: 'Node Pool',
-            getter: (node: NodeListStub) =>
-              node.NodePool ? (
-                <Chip
-                  label={node.NodePool}
-                  size="small"
-                  sx={{
-                    backgroundColor: `${getNodePoolColor(node.NodePool)}15`,
-                    color: getNodePoolColor(node.NodePool),
-                    border: `1px solid ${getNodePoolColor(node.NodePool)}`,
-                  }}
-                />
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  default
-                </Typography>
-              ),
-          },
-          {
-            label: 'Version',
-            getter: (node: NodeListStub) => (
-              <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                {node.Version}
+
+        {/* Inline Stats */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+            <Typography variant="caption" sx={{ color: colors.success, fontWeight: 600, fontSize: '0.8rem' }}>
+              {stats.ready}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>ready</Typography>
+          </Box>
+          {stats.down > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: colors.error, fontWeight: 600, fontSize: '0.8rem' }}>
+                {stats.down}
               </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>down</Typography>
+            </Box>
+          )}
+          {stats.draining > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: colors.pending, fontWeight: 600, fontSize: '0.8rem' }}>
+                {stats.draining}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>draining</Typography>
+            </Box>
+          )}
+          {stats.ineligible > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.8rem' }}>
+                {stats.ineligible}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>ineligible</Typography>
+            </Box>
+          )}
+        </Box>
+      </Box>
+
+      {/* Controls */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 2 }}>
+        <TextField
+          size="small"
+          placeholder="Search nodes..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Icon icon="mdi:magnify" width={18} color={theme.palette.text.secondary} />
+              </InputAdornment>
             ),
-          },
-          {
-            label: 'Resources',
-            getter: (node: NodeListStub) => {
-              const cpu = node.NodeResources?.Cpu?.CpuShares || 0;
-              const mem = node.NodeResources?.Memory?.MemoryMB || 0;
-              return (
+            sx: { fontSize: '0.8rem', py: 0 },
+          }}
+          sx={{ minWidth: 200, maxWidth: 300, '& .MuiInputBase-input': { py: 0.75 } }}
+        />
+
+        <Tooltip title="Refresh">
+          <IconButton onClick={loadNodes} size="small" sx={{ p: 0.75 }}>
+            <Icon icon="mdi:refresh" width={18} />
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      {/* Table */}
+      <Paper elevation={0} sx={{ borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+        <SimpleTable
+          columns={[
+            {
+              label: 'Name',
+              getter: (node: NodeListStub) => (
                 <Box>
-                  <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
-                    CPU: {cpu} MHz
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
-                    Mem: {Math.round(mem / 1024)} GB
+                  <Link
+                    component={RouterLink}
+                    to={createRouteURL('nomadNode', { id: node.ID })}
+                    sx={{ fontWeight: 500, fontSize: '0.85rem' }}
+                  >
+                    {node.Name}
+                  </Link>
+                  <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled', fontFamily: 'monospace', fontSize: '0.65rem' }}>
+                    {node.ID.substring(0, 8)}
                   </Typography>
                 </Box>
-              );
+              ),
             },
-          },
-        ]}
-        data={filteredNodes}
-        emptyMessage="No nodes found"
-      />
-    </SectionBox>
+            {
+              label: 'Datacenter',
+              getter: (node: NodeListStub) => (
+                <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>{node.Datacenter}</Typography>
+              ),
+            },
+            {
+              label: 'Address',
+              getter: (node: NodeListStub) => (
+                <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>{node.Address}</Typography>
+              ),
+            },
+            {
+              label: 'Status',
+              getter: (node: NodeListStub) => (
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  <MinimalStatus status={node.Status} />
+                  {node.Drain && (
+                    <Typography variant="caption" sx={{ color: colors.pending, fontSize: '0.65rem' }}>draining</Typography>
+                  )}
+                  {node.SchedulingEligibility === 'ineligible' && (
+                    <Typography variant="caption" sx={{ color: colors.error, fontSize: '0.65rem' }}>ineligible</Typography>
+                  )}
+                </Box>
+              ),
+            },
+            {
+              label: 'Class',
+              getter: (node: NodeListStub) => (
+                node.NodeClass ? (
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>{node.NodeClass}</Typography>
+                ) : (
+                  <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>
+                )
+              ),
+            },
+            {
+              label: 'Pool',
+              getter: (node: NodeListStub) => (
+                node.NodePool ? (
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>{node.NodePool}</Typography>
+                ) : (
+                  <Typography variant="caption" sx={{ color: 'text.disabled' }}>default</Typography>
+                )
+              ),
+            },
+            {
+              label: 'Version',
+              getter: (node: NodeListStub) => (
+                <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'text.secondary' }}>
+                  {node.Version}
+                </Typography>
+              ),
+            },
+            {
+              label: 'Resources',
+              getter: (node: NodeListStub) => {
+                const cpu = node.NodeResources?.Cpu?.CpuShares || 0;
+                const mem = node.NodeResources?.Memory?.MemoryMB || 0;
+                return (
+                  <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.65rem', color: 'text.secondary' }}>
+                    {cpu} MHz · {mem} MB
+                  </Typography>
+                );
+              },
+            },
+          ]}
+          data={filteredNodes}
+          emptyMessage="No nodes found"
+        />
+      </Paper>
+    </Box>
   );
 }
