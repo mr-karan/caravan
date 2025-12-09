@@ -137,6 +137,8 @@ export default function ClusterSwitcher() {
             transform: 'translateY(-1px)',
           },
           minWidth: 'auto',
+          flexShrink: 0,
+          whiteSpace: 'nowrap',
         }}
         aria-label="Switch cluster"
         aria-haspopup="true"
@@ -192,16 +194,31 @@ export default function ClusterSwitcher() {
           </>
         ) : (
           <>
-            <Icon icon="mdi:server-network" width={20} />
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 500,
-                fontSize: '0.8125rem',
-              }}
-            >
-              Select Cluster
-            </Typography>
+            <Icon icon="mdi:server-network" width={20} style={{ flexShrink: 0 }} />
+            <Box sx={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: '0.8125rem',
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Select
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  fontSize: '0.6875rem',
+                  lineHeight: 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Cluster
+              </Typography>
+            </Box>
           </>
         )}
         <Icon

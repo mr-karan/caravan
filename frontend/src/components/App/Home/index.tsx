@@ -713,76 +713,87 @@ function DeleteClusterDialog({
   );
 }
 
-// Stat card for aggregate dashboard
-function StatCard({
-  title,
+// Hero stat component - large, prominent display
+function HeroStat({
+  value,
+  label,
   icon,
-  total,
-  breakdown,
-  loading,
   color,
+  loading,
+  subtitle,
 }: {
-  title: string;
+  value: number;
+  label: string;
   icon: string;
-  total: number;
-  breakdown: { label: string; value: number; color: string }[];
+  color: string;
   loading?: boolean;
-  color?: string;
+  subtitle?: string;
 }) {
   const theme = useTheme();
-
+  
   return (
-    <Card
-      variant="outlined"
+    <Box
       sx={{
-        height: '100%',
-        borderTop: `3px solid ${color || theme.palette.primary.main}`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+        p: 2.5,
+        borderRadius: 2,
+        background: alpha(color, 0.08),
+        border: `1px solid ${alpha(color, 0.2)}`,
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          background: alpha(color, 0.12),
+          borderColor: alpha(color, 0.3),
+        },
       }}
     >
-      <CardContent sx={{ p: 2.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-          <Box
+      <Box
+        sx={{
+          width: 48,
+          height: 48,
+          borderRadius: 2,
+          background: `linear-gradient(135deg, ${color} 0%, ${alpha(color, 0.7)} 100%)`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: `0 4px 12px ${alpha(color, 0.3)}`,
+        }}
+      >
+        <Icon icon={icon} width={24} style={{ color: 'white' }} />
+      </Box>
+      <Box sx={{ flex: 1 }}>
+        {loading ? (
+          <Skeleton width={60} height={36} />
+        ) : (
+          <Typography
             sx={{
-              p: 0.75,
-              borderRadius: 1,
-              bgcolor: alpha(color || theme.palette.primary.main, 0.1),
-              display: 'flex',
+              fontSize: '1.75rem',
+              fontWeight: 700,
+              lineHeight: 1,
+              color: theme.palette.text.primary,
             }}
           >
-            <Icon icon={icon} width={20} color={color || theme.palette.primary.main} />
-          </Box>
-          <Typography variant="body2" color="text.secondary" fontWeight={500}>
-            {title}
-          </Typography>
-        </Box>
-
-        {loading ? (
-          <Skeleton variant="text" width={60} height={40} />
-        ) : (
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 1.5 }}>
-            {total.toLocaleString()}
+            {value.toLocaleString()}
           </Typography>
         )}
-
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          {breakdown.filter(b => b.value > 0).map(item => (
-            <Box key={item.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box
-                sx={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  backgroundColor: item.color,
-                }}
-              />
-              <Typography variant="caption" color="text.secondary">
-                {loading ? <Skeleton width={30} /> : `${item.value} ${item.label}`}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
-      </CardContent>
-    </Card>
+        <Typography
+          variant="body2"
+          sx={{
+            color: theme.palette.text.secondary,
+            fontWeight: 500,
+            mt: 0.25,
+          }}
+        >
+          {label}
+        </Typography>
+        {subtitle && (
+          <Typography variant="caption" sx={{ color: alpha(theme.palette.text.secondary, 0.7) }}>
+            {subtitle}
+          </Typography>
+        )}
+      </Box>
+    </Box>
   );
 }
 
@@ -1186,12 +1197,18 @@ export default function Home() {
 
   const handleAddCluster = async (data: AddClusterFormData) => {
     // Already added during test, just save to localStorage
+    // For OIDC auth, the token was already set to 'authenticated' by OIDCCallback
+    // For token auth, use the provided token
+    const tokenValue = data.authType === 'oidc' 
+      ? 'authenticated'  // OIDC sets HTTPOnly cookie, mark as authenticated
+      : (data.token || undefined);
+    
     saveCluster({
       name: data.name,
       address: data.address,
       region: data.region || undefined,
       namespace: data.namespace || undefined,
-      token: data.token || undefined,
+      token: tokenValue,
     });
 
     // Refresh config
@@ -1248,28 +1265,7 @@ export default function Home() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
-        <Box>
-          <Typography variant="h4" fontWeight={700}>
-            Clusters
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {clusterCount === 0
-              ? 'No clusters configured'
-              : `${clusterCount} cluster${clusterCount !== 1 ? 's' : ''} configured`}
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<Icon icon="mdi:plus" />}
-          onClick={() => setAddDialogOpen(true)}
-        >
-          Add Cluster
-        </Button>
-      </Box>
-
+    <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 1400, mx: 'auto' }}>
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
@@ -1280,65 +1276,88 @@ export default function Home() {
         <EmptyState onAddCluster={() => setAddDialogOpen(true)} />
       ) : (
         <>
-          {/* Aggregate Stats */}
-          {clusterCount > 1 && (
-            <Grid container spacing={2} sx={{ mb: 4 }}>
-              <Grid size={{ xs: 6, sm: 3 }}>
-                <StatCard
-                  title="Clusters"
-                  icon="mdi:hexagon-multiple"
-                  total={aggregate.clusters.total}
-                  loading={loading}
-                  color={theme.palette.primary.main}
-                  breakdown={[
-                    { label: 'connected', value: aggregate.clusters.connected, color: theme.palette.success.main },
-                    { label: 'offline', value: aggregate.clusters.disconnected, color: theme.palette.error.main },
-                  ]}
-                />
+          {/* Hero Section - Overview Stats */}
+          <Box
+            sx={{
+              mb: 4,
+              p: { xs: 2, sm: 3 },
+              borderRadius: 3,
+              background: theme => 
+                theme.palette.mode === 'dark'
+                  ? `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.15)} 0%, ${alpha('#0a0e17', 0.8)} 100%)`
+                  : `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`,
+              border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+            }}
+          >
+            {/* Header Row */}
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
+              <Box>
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 700,
+                    background: theme.palette.mode === 'dark' 
+                      ? 'linear-gradient(135deg, #fff 0%, #b0b0b0 100%)'
+                      : 'linear-gradient(135deg, #1a1a1a 0%, #4a4a4a 100%)',
+                    backgroundClip: 'text',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
+                  Clusters
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  {aggregate.clusters.connected} of {clusterCount} connected
+                  {aggregate.nodes.down > 0 && (
+                    <Typography component="span" sx={{ color: 'warning.main', ml: 1 }}>
+                      • {aggregate.nodes.down} node{aggregate.nodes.down !== 1 ? 's' : ''} down
+                    </Typography>
+                  )}
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<Icon icon="mdi:plus" />}
+                onClick={() => setAddDialogOpen(true)}
+                sx={{
+                  px: 2.5,
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                  boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.35)}`,
+                  '&:hover': {
+                    boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.45)}`,
+                  },
+                }}
+              >
+                Add Cluster
+              </Button>
+            </Box>
+
+            {/* Stats Row - Only show for multiple clusters */}
+            {clusterCount > 1 && (
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 6 }}>
+                  <HeroStat
+                    value={aggregate.clusters.connected}
+                    label="Connected Clusters"
+                    icon="mdi:check-network"
+                    color="#00ca8e"
+                    loading={loading}
+                    subtitle={aggregate.clusters.disconnected > 0 ? `${aggregate.clusters.disconnected} offline` : 'All online'}
+                  />
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <HeroStat
+                    value={aggregate.nodes.total}
+                    label="Total Nodes"
+                    icon="mdi:server"
+                    color="#3b82f6"
+                    loading={loading}
+                    subtitle={aggregate.nodes.down > 0 ? `${aggregate.nodes.down} down` : 'All healthy'}
+                  />
+                </Grid>
               </Grid>
-              <Grid size={{ xs: 6, sm: 3 }}>
-                <StatCard
-                  title="Nodes"
-                  icon="mdi:server"
-                  total={aggregate.nodes.total}
-                  loading={loading}
-                  color={theme.palette.info.main}
-                  breakdown={[
-                    { label: 'ready', value: aggregate.nodes.ready, color: theme.palette.success.main },
-                    { label: 'down', value: aggregate.nodes.down, color: theme.palette.error.main },
-                  ]}
-                />
-              </Grid>
-              <Grid size={{ xs: 6, sm: 3 }}>
-                <StatCard
-                  title="Jobs"
-                  icon="mdi:briefcase-outline"
-                  total={aggregate.jobs.total}
-                  loading={loading}
-                  color={theme.palette.success.main}
-                  breakdown={[
-                    { label: 'running', value: aggregate.jobs.running, color: theme.palette.success.main },
-                    { label: 'pending', value: aggregate.jobs.pending, color: theme.palette.warning.main },
-                    { label: 'dead', value: aggregate.jobs.dead, color: theme.palette.error.main },
-                  ]}
-                />
-              </Grid>
-              <Grid size={{ xs: 6, sm: 3 }}>
-                <StatCard
-                  title="Allocations"
-                  icon="mdi:cube-outline"
-                  total={aggregate.allocations.total}
-                  loading={loading}
-                  color={theme.palette.warning.main}
-                  breakdown={[
-                    { label: 'running', value: aggregate.allocations.running, color: theme.palette.success.main },
-                    { label: 'pending', value: aggregate.allocations.pending, color: theme.palette.warning.main },
-                    { label: 'failed', value: aggregate.allocations.failed, color: theme.palette.error.main },
-                  ]}
-                />
-              </Grid>
-            </Grid>
-          )}
+            )}
+          </Box>
 
           {/* Search and View Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
@@ -1354,7 +1373,12 @@ export default function Home() {
                   </InputAdornment>
                 ),
               }}
-              sx={{ width: 280 }}
+              sx={{ 
+                width: { xs: '100%', sm: 280 },
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                },
+              }}
             />
             <Box sx={{ flex: 1 }} />
             <ToggleButtonGroup
@@ -1362,6 +1386,12 @@ export default function Home() {
               value={viewMode}
               exclusive
               onChange={(_, value) => value && setViewMode(value)}
+              sx={{
+                '& .MuiToggleButton-root': {
+                  borderRadius: 1.5,
+                  px: 1.5,
+                },
+              }}
             >
               <ToggleButton value="grid">
                 <Icon icon="mdi:view-grid" width={20} />

@@ -404,20 +404,33 @@ export const PureTopBar = memo(
               </>
             ) : (
               <>
-                {/* Logo Section */}
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <AppLogo />
+                {/* Logo + Cluster Switcher Group */}
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  {/* Logo */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', mr: 0.5 }}>
+                    <AppLogo />
+                  </Box>
+
+                  {/* Subtle separator */}
+                  <Box
+                    sx={{
+                      width: 1,
+                      height: 24,
+                      backgroundColor: 'divider',
+                      opacity: 0.3,
+                      mx: 1,
+                    }}
+                  />
+
+                  {/* Cluster Switcher */}
+                  <ClusterSwitcher />
                 </Box>
-
-                {/* Divider */}
-                <Divider
-                  orientation="vertical"
-                  flexItem
-                  sx={{ mx: 1.5, my: 1.5, opacity: 0.3 }}
-                />
-
-                {/* Cluster Switcher */}
-                <ClusterSwitcher />
 
                 {/* Spacer */}
                 <Box sx={{ flexGrow: 1 }} />

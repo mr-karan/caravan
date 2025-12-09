@@ -1,144 +1,102 @@
 # Getting Started
 
-This guide will help you get Caravan up and running.
+Get Caravan up and running in minutes.
 
 ## Prerequisites
 
 - A running Nomad cluster (v1.4+)
 - Go 1.21+ (for building from source)
 - Node.js 18+ or Bun (for building frontend)
-- [just](https://github.com/casey/just) command runner (optional but recommended)
 
-## Installation
+## Quick Start
 
-### From Source
+### Option 1: Download Release
+
+Download the latest release for your platform from the [releases page](https://github.com/caravan-nomad/caravan/releases).
+
+```bash
+# Make executable
+chmod +x caravan
+
+# Run
+./caravan
+```
+
+Open http://localhost:4466 in your browser.
+
+### Option 2: Build from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/caravan.git
+git clone https://github.com/caravan-nomad/caravan.git
 cd caravan
 
-# Install dependencies
-just install
-
-# Build everything
+# Build (requires just command runner)
 just build
+
+# Run
+./caravan
 ```
 
-### Pre-built Binaries
+## Adding Your First Cluster
 
-Download the latest release for your platform from the releases page.
+1. Open http://localhost:4466
+2. Click **Add Cluster**
+3. Enter your cluster details:
+   - **Name**: e.g., `production`
+   - **Address**: e.g., `https://nomad.example.com:4646`
+4. Choose authentication:
+   - **ACL Token**: Paste your Nomad token
+   - **OIDC**: Use SSO (if configured)
+5. Click **Add Cluster**
 
-## Configuration
+That's it! You can now browse your Nomad jobs, nodes, and allocations.
 
-### Single Cluster (Environment Variables)
+## Development Setup
 
-The simplest way to connect to a Nomad cluster:
-
-```bash
-# Required: Nomad server address
-export NOMAD_ADDR=http://localhost:4646
-
-# Optional: ACL token for authentication
-export NOMAD_TOKEN=your-acl-token
-
-# Optional: Default region
-export NOMAD_REGION=global
-
-# Optional: Default namespace
-export NOMAD_NAMESPACE=default
-
-# Optional: Custom cluster name (defaults to "default")
-export NOMAD_CLUSTER_NAME=my-cluster
-```
-
-### TLS Configuration
-
-For secure connections:
+For contributing or local development:
 
 ```bash
-export NOMAD_ADDR=https://nomad.example.com:4646
-export NOMAD_CACERT=/path/to/ca.pem
-export NOMAD_CLIENT_CERT=/path/to/client.pem
-export NOMAD_CLIENT_KEY=/path/to/client-key.pem
+# Terminal 1: Run the server
+just run
 
-# Or to skip verification (not recommended for production)
-export NOMAD_SKIP_VERIFY=true
-```
-
-## Running
-
-### Development Mode
-
-For development with hot reload:
-
-```bash
-# Terminal 1: Run backend
-just run-backend
-
-# Terminal 2: Run frontend dev server
+# Terminal 2: Run frontend dev server with hot reload
 just run-frontend
 ```
 
-Or run both together:
+Access the dev UI at http://localhost:3000.
+
+## Verify Installation
 
 ```bash
-just dev
+# Check Caravan is running
+curl http://localhost:4466/config
+
+# Check Nomad connectivity (after adding a cluster)
+curl http://localhost:4466/api/clusters/your-cluster/v1/status/leader
 ```
 
-Access the UI at http://localhost:3000 (frontend dev server proxies to backend).
+## Troubleshooting
 
-### Production Mode
-
-Build and run with embedded frontend:
+### Cannot connect to Nomad
 
 ```bash
-# Build single binary with embedded frontend
-just build-embed
-
-# Run the server
-./backend/caravan
-```
-
-Access the UI at http://localhost:4466.
-
-### With Pre-built Frontend
-
-```bash
-# Build frontend
-just build-frontend
-
-# Run backend serving static files
-./backend/caravan -html-static-dir ./frontend/build
-```
-
-## Verifying the Setup
-
-1. Open http://localhost:4466 (or :3000 in dev mode)
-2. You should see the Caravan dashboard
-3. Navigate to Jobs, Nodes, or Allocations to verify connectivity
-
-### Troubleshooting
-
-**Cannot connect to Nomad:**
-```bash
-# Verify Nomad is reachable
-just check-nomad
-
-# Or manually
+# Verify Nomad is reachable directly
 curl $NOMAD_ADDR/v1/status/leader
 ```
 
-**CORS errors in browser:**
-- Make sure you're accessing via the backend port (4466), not directly
-- In dev mode, the frontend dev server proxies API calls
+### Authentication errors
 
-**Authentication errors:**
-- Verify your NOMAD_TOKEN is valid
-- Check ACL policies allow the required permissions
+- Verify your ACL token has the required permissions
+- For OIDC, ensure your auth method is configured in Nomad
+
+### TLS errors
+
+- Check certificate paths are correct
+- Try `-insecure-ssl` flag for testing (not recommended for production)
 
 ## Next Steps
 
-- [Configuration Guide](./configuration.md) - Advanced configuration options
-- [Multi-cluster Setup](./configuration.md#multi-cluster) - Connect to multiple clusters
+- [Configuration Guide](./configuration.md) - All configuration options
+- [Architecture](./architecture.md) - How Caravan works
 - [Development Guide](./development.md) - Contributing to the project

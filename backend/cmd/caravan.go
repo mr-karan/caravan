@@ -335,13 +335,6 @@ func (c *CaravanConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 func createCaravanHandler(config *CaravanConfig) http.Handler {
 	config.StaticPluginDir = os.Getenv("CARAVAN_STATIC_PLUGINS_DIR")
 
-	logger.Log(logger.LevelInfo, nil, nil, "Creating Caravan handler (Nomad mode)")
-	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
-	logger.Log(logger.LevelInfo, nil, nil, "Static plugin dir: "+config.StaticPluginDir)
-	logger.Log(logger.LevelInfo, nil, nil, "User plugins dir: "+config.UserPluginDir)
-	logger.Log(logger.LevelInfo, nil, nil, "Plugins dir: "+config.PluginDir)
-	logger.Log(logger.LevelInfo, nil, nil, "Base URL: "+config.BaseURL)
-
 	// Populate plugins cache
 	plugins.PopulatePluginsCache(config.StaticPluginDir, config.UserPluginDir, config.PluginDir, config.cache)
 
@@ -369,19 +362,12 @@ func createCaravanHandler(config *CaravanConfig) http.Handler {
 		)
 	}
 
-	// Backend is stateless - clusters are registered by frontend from localStorage
-	// No clusters are loaded from environment variables
-	logger.Log(logger.LevelInfo, nil, nil, "Backend started - clusters will be registered by frontend")
-
 	if config.StaticDir != "" {
 		baseURLReplace(config.StaticDir, config.BaseURL)
 	}
 
-	// Setup router using Go 1.22+ http.ServeMux with pattern matching
+	// Setup router
 	mux := http.NewServeMux()
-
-	fmt.Println("*** Caravan Server (Nomad Mode) ***")
-	fmt.Println("  Using Go 1.22+ http.ServeMux routing")
 
 	// Add plugin routes
 	addPluginRoutes(config, mux)
@@ -575,17 +561,25 @@ func main() {
 
 	// Start server
 	addr := fmt.Sprintf("%s:%d", caravanConfig.ListenAddr, caravanConfig.Port)
-	logger.Log(logger.LevelInfo, nil, nil, "Starting server on "+addr)
+
+	// Clean startup message
+	displayAddr := addr
+	if caravanConfig.ListenAddr == "" {
+		displayAddr = fmt.Sprintf("localhost:%d", caravanConfig.Port)
+	}
+	fmt.Println()
+	fmt.Println("  Caravan is running at http://" + displayAddr)
+	fmt.Println()
 
 	if caravanConfig.TLSCertPath != "" && caravanConfig.TLSKeyPath != "" {
-		logger.Log(logger.LevelInfo, nil, nil, "TLS enabled")
+		fmt.Println("  TLS enabled")
 		err = http.ListenAndServeTLS(addr, caravanConfig.TLSCertPath, caravanConfig.TLSKeyPath, handler)
 	} else {
 		err = http.ListenAndServe(addr, handler)
 	}
 
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "server failed")
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }

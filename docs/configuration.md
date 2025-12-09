@@ -1,157 +1,153 @@
 # Configuration Guide
 
-Caravan can be configured using environment variables for flexibility across different deployment scenarios.
-
-## Environment Variables
-
-### Nomad Connection
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NOMAD_ADDR` | Nomad server HTTP address | `http://127.0.0.1:4646` |
-| `NOMAD_TOKEN` | ACL token for authentication | (none) |
-| `NOMAD_REGION` | Default Nomad region | (from Nomad) |
-| `NOMAD_NAMESPACE` | Default namespace | `default` |
-| `NOMAD_CLUSTER_NAME` | Display name for the cluster | `default` |
-
-### TLS Configuration
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NOMAD_CACERT` | Path to CA certificate | (none) |
-| `NOMAD_CLIENT_CERT` | Path to client certificate | (none) |
-| `NOMAD_CLIENT_KEY` | Path to client private key | (none) |
-| `NOMAD_SKIP_VERIFY` | Skip TLS verification | `false` |
-
-### Server
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CARAVAN_PORT` | Port to listen on | `4466` |
-| `CARAVAN_BASE_URL` | Base URL path | `/` |
-
-## Multi-Cluster Setup {#multi-cluster}
-
-Connect to multiple Nomad clusters by defining them via environment variables.
-
-### Using CARAVAN_CLUSTERS
-
-```bash
-# Define cluster names (comma-separated)
-export CARAVAN_CLUSTERS=production,staging,local
-
-# Production cluster
-export NOMAD_ADDR_PRODUCTION=https://nomad.prod.example.com:4646
-export NOMAD_TOKEN_PRODUCTION=prod-acl-token
-export NOMAD_REGION_PRODUCTION=us-east-1
-export NOMAD_CACERT_PRODUCTION=/path/to/prod-ca.pem
-
-# Staging cluster
-export NOMAD_ADDR_STAGING=https://nomad.staging.example.com:4646
-export NOMAD_TOKEN_STAGING=staging-acl-token
-export NOMAD_REGION_STAGING=us-west-2
-
-# Local development cluster
-export NOMAD_ADDR_LOCAL=http://localhost:4646
-```
-
-### Environment Variable Naming
-
-For multi-cluster configuration, append the uppercase cluster name to each variable:
-
-- `NOMAD_ADDR_<CLUSTER>` - Server address
-- `NOMAD_TOKEN_<CLUSTER>` - ACL token
-- `NOMAD_REGION_<CLUSTER>` - Region
-- `NOMAD_NAMESPACE_<CLUSTER>` - Namespace
-- `NOMAD_CACERT_<CLUSTER>` - CA certificate path
-- `NOMAD_SKIP_VERIFY_<CLUSTER>` - Skip TLS verification
-
-**Note:** Cluster names with hyphens become underscores (e.g., `my-cluster` → `NOMAD_ADDR_MY_CLUSTER`)
-
-### Fallback Behavior
-
-For the first cluster in the list, standard `NOMAD_*` variables are used as fallbacks if cluster-specific variables aren't set.
-
-## Example Configurations
-
-### Local Development
-
-```bash
-export NOMAD_ADDR=http://localhost:4646
-```
-
-### Production with TLS
-
-```bash
-export NOMAD_ADDR=https://nomad.example.com:4646
-export NOMAD_TOKEN=your-management-token
-export NOMAD_CACERT=/etc/nomad.d/ca.pem
-export NOMAD_CLIENT_CERT=/etc/nomad.d/client.pem
-export NOMAD_CLIENT_KEY=/etc/nomad.d/client-key.pem
-export NOMAD_CLUSTER_NAME=production
-```
-
-### Multiple Environments
-
-```bash
-# Define clusters
-export CARAVAN_CLUSTERS=prod,staging,dev
-
-# Production (us-east)
-export NOMAD_ADDR_PROD=https://nomad.prod.example.com:4646
-export NOMAD_TOKEN_PROD=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
-export NOMAD_REGION_PROD=us-east-1
-
-# Staging (us-west)
-export NOMAD_ADDR_STAGING=https://nomad.staging.example.com:4646
-export NOMAD_TOKEN_STAGING=11111111-2222-3333-4444-555555555555
-export NOMAD_REGION_STAGING=us-west-2
-
-# Dev (local)
-export NOMAD_ADDR_DEV=http://localhost:4646
-```
+Caravan can be configured using command-line flags and environment variables.
 
 ## Command Line Flags
 
-The backend server accepts several command line flags:
-
 ```bash
 ./caravan [flags]
-
-Flags:
-  -html-static-dir string   Directory to serve static files from
-  -listen-addr string       Address to listen on (default "0.0.0.0:4466")
-  -dev                      Enable development mode
 ```
 
-### Examples
+### Server Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-port` | Port to listen on | `4466` |
+| `-listen-addr` | Address to bind to | `` (all interfaces) |
+| `-base-url` | Base URL path (e.g., `/caravan`) | `` |
+| `-html-static-dir` | Directory to serve frontend from | (embedded) |
+| `-dev` | Enable development mode (allows CORS from other origins) | `false` |
+
+### TLS Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-tls-cert-path` | Path to TLS certificate | (none) |
+| `-tls-key-path` | Path to TLS private key | (none) |
+
+### Plugin Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-plugins-dir` | Directory for plugins | `~/.config/Caravan/plugins` |
+| `-user-plugins-dir` | Directory for user-installed plugins | `~/.config/Caravan/user-plugins` |
+| `-watch-plugins-changes` | Auto-reload plugins on changes | `true` |
+
+### Other Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-version` | Print version and exit | |
+| `-insecure-ssl` | Skip TLS verification for upstream connections | `false` |
+| `-enable-dynamic-clusters` | Allow adding clusters from the UI | `true` |
+| `-proxy-urls` | Comma-separated URLs to allow proxying | `` |
+
+## Environment Variables
+
+All flags can be set via environment variables using the prefix `CARAVAN_CONFIG_`:
 
 ```bash
-# Serve embedded frontend (default)
-./caravan
+# Flag: -port 8080
+export CARAVAN_CONFIG_PORT=8080
 
-# Serve frontend from directory
-./caravan -html-static-dir ./frontend/build
+# Flag: -base-url /nomad
+export CARAVAN_CONFIG_BASE_URL=/nomad
 
-# Listen on different port
-./caravan -listen-addr 0.0.0.0:8080
-
-# Development mode (more verbose logging)
-./caravan -dev
+# Flag: -html-static-dir ./dist
+export CARAVAN_CONFIG_HTML_STATIC_DIR=./dist
 ```
 
-## Docker Configuration
+**Convention:** Replace hyphens with underscores and use uppercase.
 
-When running in Docker, pass environment variables:
+## Examples
+
+### Basic Usage
+
+```bash
+# Run with defaults (port 4466, embedded frontend)
+./caravan
+
+# Custom port
+./caravan -port 8080
+
+# Listen on specific address
+./caravan -listen-addr 127.0.0.1 -port 8080
+```
+
+### With TLS
+
+```bash
+./caravan \
+  -tls-cert-path /path/to/cert.pem \
+  -tls-key-path /path/to/key.pem
+```
+
+### Development Mode
+
+```bash
+# Backend only (frontend served by Vite dev server)
+./caravan -dev
+
+# Or serve static build
+./caravan -html-static-dir ./frontend/build
+```
+
+### Behind a Reverse Proxy
+
+```bash
+# Serve under /caravan path
+./caravan -base-url /caravan
+```
+
+## Cluster Configuration
+
+Clusters are managed through the Caravan UI. When you add a cluster in the UI, the configuration is:
+
+1. Stored in the browser's localStorage
+2. Synced to the server for the current session
+
+### Adding Clusters via UI
+
+1. Click **Add Cluster** on the home page
+2. Enter the cluster details:
+   - **Name**: A friendly name for the cluster
+   - **Address**: The Nomad server URL (e.g., `https://nomad.example.com:4646`)
+   - **Region**: Optional Nomad region
+   - **Namespace**: Optional default namespace
+3. Choose authentication method:
+   - **ACL Token**: Enter a Nomad ACL token directly
+   - **OIDC**: Use your organization's SSO provider
+
+### Environment Variables for Nomad
+
+These standard Nomad environment variables are supported when connecting:
+
+| Variable | Description |
+|----------|-------------|
+| `NOMAD_ADDR` | Nomad server address |
+| `NOMAD_TOKEN` | ACL token |
+| `NOMAD_REGION` | Default region |
+| `NOMAD_NAMESPACE` | Default namespace |
+| `NOMAD_CACERT` | CA certificate path |
+| `NOMAD_CLIENT_CERT` | Client certificate path |
+| `NOMAD_CLIENT_KEY` | Client key path |
+| `NOMAD_SKIP_VERIFY` | Skip TLS verification |
+
+## Docker
+
+```bash
+docker run -p 4466:4466 caravan:latest
+```
+
+With environment variables:
 
 ```bash
 docker run -p 4466:4466 \
-  -e NOMAD_ADDR=http://host.docker.internal:4646 \
-  -e NOMAD_TOKEN=your-token \
+  -e CARAVAN_CONFIG_PORT=4466 \
   caravan:latest
 ```
 
-For Docker Compose:
+## Docker Compose
 
 ```yaml
 version: '3'
@@ -161,6 +157,5 @@ services:
     ports:
       - "4466:4466"
     environment:
-      - NOMAD_ADDR=http://nomad:4646
-      - NOMAD_TOKEN=${NOMAD_TOKEN}
+      - CARAVAN_CONFIG_PORT=4466
 ```

@@ -61,7 +61,7 @@ just dev
 Or run them separately:
 
 ```bash
-# Terminal 1: Backend
+# Terminal 1: Server
 just run-backend
 
 # Terminal 2: Frontend (with hot reload)

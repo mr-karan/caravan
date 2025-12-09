@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="72" viewBox="0 0 180 72">
+  <defs>
+    <style>
+      .nomad-1 { fill: #00ca8e; }
+      .nomad-2 { fill: #00ca8e; opacity: 0.65; }
+      .nomad-3 { fill: #00ca8e; opacity: 0.4; }
+      .nomad-4 { fill: #00ca8e; opacity: 0.2; }
+      .path-line { fill: none; stroke: #00ca8e; stroke-width: 2; stroke-linecap: round; opacity: 0.3; }
+      .connection { fill: none; stroke: #00ca8e; stroke-width: 1.2; stroke-linecap: round; opacity: 0.25; }
+    </style>
+
+    <!-- Nomad Logo Symbol -->
+    <symbol id="nomad" viewBox="0 0 50 72">
+      <path d="M25,7.2L0,21.6v28.8l25,14.4,25-14.4v-28.9L25,7.2ZM36.1,38.8l-6.7,3.8-8-4.4v9.2l-7.6,4.8v-19.2l6-3.7,8.3,4.4v-9.3l8-4.8v19.2Z"/>
+    </symbol>
+  </defs>
+
+  <title>Nomad Caravan</title>
+
+  <!-- Abstract journey path - sweeping curve suggesting movement and horizon -->
+  <path class="path-line" d="M-10,62 C30,58 50,52 90,42 S150,28 190,22"/>
+
+  <!-- Flowing connections between nomads - representing federation/unity -->
+  <path class="connection" d="M38,48 Q52,40 62,38"/>
+  <path class="connection" d="M80,32 Q95,26 105,24"/>
+  <path class="connection" d="M118,20 Q130,16 138,14"/>
+
+  <!-- The Caravan - Nomads in formation -->
+
+  <!-- Lead nomad - primary cluster, anchoring the group -->
+  <use href="#nomad" class="nomad-1" x="6" y="24" width="34" height="49"/>
+
+  <!-- Second nomad - close companion -->
+  <use href="#nomad" class="nomad-2" x="44" y="16" width="28" height="40"/>
+
+  <!-- Third nomad - middle of pack -->
+  <use href="#nomad" class="nomad-3" x="78" y="10" width="24" height="34"/>
+
+  <!-- Fourth nomad - towards horizon -->
+  <use href="#nomad" class="nomad-4" x="108" y="5" width="20" height="28"/>
+
+  <!-- Fifth nomad - fading into distance -->
+  <use href="#nomad" class="nomad-4" x="134" y="1" width="16" height="23" style="opacity: 0.12"/>
+
+  <!-- Subtle motion marks - abstract speed lines -->
+  <line class="connection" x1="2" y1="58" x2="18" y2="56" style="opacity: 0.15"/>
+  <line class="connection" x1="0" y1="62" x2="12" y2="61" style="opacity: 0.1"/>
+
+</svg>

@@ -12,7 +12,7 @@
 
 ## Project Structure
 
-This is Caravan - a Nomad UI dashboard (fork of Headlamp) with:
+This is Caravan - a Nomad UI dashboard with:
 - `frontend/` - React frontend with TypeScript
 - `backend/` - Go backend server
 

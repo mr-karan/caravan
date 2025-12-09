@@ -1,45 +1,42 @@
 # Caravan Documentation
 
-Caravan is a web-based dashboard for [HashiCorp Nomad](https://www.nomadproject.io/), providing a modern interface for managing and monitoring your Nomad clusters.
+Caravan is a modern web dashboard for [HashiCorp Nomad](https://www.nomadproject.io/).
 
 ## Contents
 
-- [Getting Started](./getting-started.md) - Installation and quick start guide
-- [Configuration](./configuration.md) - Configuration options and multi-cluster setup
-- [Development](./development.md) - Contributing and development setup
-- [Architecture](./architecture.md) - Technical architecture overview
-- [Roadmap](./roadmap.md) - Planned features and development roadmap
+- [Getting Started](./getting-started.md) - Installation and quick start
+- [Configuration](./configuration.md) - Command-line flags and options
+- [Architecture](./architecture.md) - Technical overview
+- [Development](./development.md) - Contributing guide
+- [Roadmap](./roadmap.md) - Planned features
 
 ## Quick Start
 
 ```bash
-# Set your Nomad address
-export NOMAD_ADDR=http://localhost:4646
+# Download and run
+./caravan
 
-# Build and run
-just build
-just run-backend
-
-# Or for development with hot reload
-just dev
+# Open in browser
+open http://localhost:4466
 ```
 
-Then open http://localhost:4466 in your browser.
+Or build from source:
+
+```bash
+just build
+./caravan
+```
 
 ## Features
 
-- **Jobs Management** - View, create, stop, and manage Nomad jobs
-- **Allocations** - Monitor allocations, view logs, restart tasks
-- **Nodes** - View cluster nodes, drain nodes, manage eligibility
-- **Multi-cluster** - Connect to multiple Nomad clusters
-- **ACL Support** - Full ACL token authentication support
-- **Real-time Updates** - Live updates via Nomad Event Stream
-
-## Requirements
-
-- Go 1.21+ (for building backend)
-- Node.js 18+ (for building frontend)
-- A running Nomad cluster (v1.4+)
+- **Multi-cluster** - Connect to multiple Nomad clusters from a single UI
+- **Jobs** - View, create, stop, and manage jobs
+- **Allocations** - Monitor allocations, view logs, exec into tasks
+- **Nodes** - View cluster nodes, manage drain/eligibility
+- **Services** - Browse Nomad service discovery registrations
+- **Variables** - Manage Nomad variables with secret masking
+- **OIDC Support** - SSO authentication via OIDC providers
+- **Real-time** - Live updates via Nomad Event Stream
 
 ## License
 

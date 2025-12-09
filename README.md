@@ -1,20 +1,34 @@
 # Caravan
 
-A modern web UI for [HashiCorp Nomad](https://www.nomadproject.io/) with multi-cluster support.
+<p align="center">
+  <img src="./Nomad-Caravan.svg" alt="Caravan Logo" width="300">
+</p>
 
-![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
+<p align="center">
+  <strong>A modern web UI for <a href="https://www.nomadproject.io/">HashiCorp Nomad</a> with multi-cluster support</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License">
+  <img src="https://img.shields.io/badge/nomad-1.7+-00ca8e.svg" alt="Nomad Version">
+</p>
+
+---
 
 ## About
 
-Caravan is a fork of [Headlamp](https://github.com/headlamp-k8s/headlamp), originally a Kubernetes dashboard. It has been extensively modified to work with HashiCorp Nomad instead of Kubernetes, providing a clean and intuitive interface for managing your Nomad clusters.
+Caravan is a modern web UI for HashiCorp Nomad, providing a clean and intuitive interface for managing your Nomad clusters.
 
 ## Features
 
 - **Jobs** - View, manage, and monitor Nomad jobs
 - **Allocations** - Track allocation status, view logs, restart tasks
 - **Nodes** - Monitor cluster nodes, manage drain and eligibility
+- **Services** - Browse and inspect service registrations
+- **Variables** - Manage Nomad variables with secure reveal
 - **Multi-cluster** - Connect to multiple Nomad clusters from a single UI
 - **ACL Support** - Full ACL token authentication
+- **OIDC Login** - Single sign-on with GitLab, Auth0, and other OIDC providers
 
 ## Quick Start
 

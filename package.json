@@ -2,10 +2,10 @@
   "name": "caravan-root",
   "version": "0.1.0",
   "private": true,
-  "description": "Caravan - An easy-to-use and extensible Kubernetes web UI",
+  "description": "Caravan - A modern web UI for HashiCorp Nomad",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kubernetes-sigs/caravan.git"
+    "url": "https://github.com/mr-karan/caravan.git"
   },
   "license": "Apache-2.0",
   "engines": {
@@ -76,8 +76,8 @@
     "concurrently": "^8.2.2"
   },
   "keywords": [
-    "kubernetes",
-    "k8s",
+    "nomad",
+    "hashicorp",
     "ui",
     "web",
     "dashboard",

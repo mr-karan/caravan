@@ -37,7 +37,7 @@ export default function OriginalAppLogo(props: AppLogoProps) {
       ? LogoLight
       : LogoDark;
 
-  return <Component style={{ width: 'auto', height: '32px' }} />;
+  return <Component style={{ width: 'auto', height: '38px' }} />;
 }
 
 export function AppLogo(props: AppLogoProps) {

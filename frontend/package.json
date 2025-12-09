@@ -12,7 +12,6 @@
     "@apidevtools/swagger-parser": "^12.1.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@headlamp-k8s/eslint-config": "^0.7.0",
     "@iconify/icons-mdi": "^1.2.48",
     "@iconify/react": "^6.0.2",
     "@monaco-editor/react": "^4.7.0",
@@ -162,15 +161,66 @@
     ]
   },
   "eslintConfig": {
+    "env": {
+      "browser": true,
+      "es6": true,
+      "node": true
+    },
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+      "ecmaFeatures": {
+        "jsx": true,
+        "modules": true
+      },
+      "ecmaVersion": 2018,
+      "sourceType": "module"
+    },
     "plugins": [
+      "react",
+      "react-hooks",
+      "simple-import-sort",
+      "@typescript-eslint",
+      "unused-imports",
       "license-header"
     ],
     "extends": [
-      "@headlamp-k8s",
       "prettier",
       "plugin:jsx-a11y/recommended"
     ],
     "rules": {
+      "key-spacing": 1,
+      "arrow-spacing": 1,
+      "eqeqeq": ["warn", "always"],
+      "max-len": ["warn", { "code": 100, "ignoreTemplateLiterals": true, "ignoreStrings": true, "ignoreUrls": true }],
+      "no-multiple-empty-lines": ["warn", { "max": 1, "maxEOF": 1, "maxBOF": 0 }],
+      "space-infix-ops": 1,
+      "no-multi-spaces": 1,
+      "quotes": ["warn", "single", { "avoidEscape": true }],
+      "no-use-before-define": 0,
+      "semi": ["warn", "always"],
+      "prefer-const": 1,
+      "react/jsx-indent": ["warn", 2, { "checkAttributes": true }],
+      "react/jsx-indent-props": ["warn", 2],
+      "react/jsx-closing-bracket-location": 1,
+      "react/jsx-boolean-value": ["warn", "never"],
+      "react/jsx-max-props-per-line": ["warn", { "maximum": 1, "when": "multiline" }],
+      "no-unneeded-ternary": 1,
+      "indent": ["warn", 2, { "SwitchCase": 1, "ignoredNodes": ["JSXElement"] }],
+      "comma-spacing": 1,
+      "newline-per-chained-call": 1,
+      "keyword-spacing": 1,
+      "no-whitespace-before-property": 1,
+      "no-case-declarations": 1,
+      "no-trailing-spaces": 1,
+      "no-return-assign": 1,
+      "no-param-reassign": ["warn", { "props": false }],
+      "no-shadow": 0,
+      "no-underscore-dangle": 0,
+      "simple-import-sort/imports": ["warn", { "groups": [["^\\u0000", "^@?\\w", "^[^.]", "^\\."]] }],
+      "eol-last": ["warn", "always"],
+      "one-var": ["warn", "never"],
+      "unused-imports/no-unused-imports": "error",
+      "no-unused-vars": "error",
       "license-header/header": [
         "error",
         [
@@ -191,9 +241,19 @@
           " */"
         ]
       ]
+    },
+    "settings": {
+      "react": {
+        "version": "detect"
+      }
     }
   },
-  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "prettier": {
+    "arrowParens": "avoid",
+    "singleQuote": true,
+    "semi": true,
+    "printWidth": 100
+  },
   "devDependencies": {
     "@rsbuild/core": "^1.6.13",
     "@rsbuild/plugin-node-polyfill": "^1.4.2",
