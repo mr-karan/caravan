@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import {
   alpha,
@@ -17,7 +17,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { SimpleTable, ErrorPage } from '../../common';
-import { getService } from '../../../lib/nomad/api';
+import { getService, getServiceAllNamespaces } from '../../../lib/nomad/api';
 import { ServiceRegistration } from '../../../lib/nomad/types';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import BackLink from '../../common/BackLink';
@@ -197,6 +197,7 @@ function InstanceCard({ registration }: { registration: ServiceRegistration }) {
 
 export default function ServiceDetails() {
   const { name } = useParams<{ name: string }>();
+  const [searchParams] = useSearchParams();
   const theme = useTheme();
   const { namespace } = useNamespace();
   const [registrations, setRegistrations] = useState<ServiceRegistration[]>([]);
@@ -204,13 +205,28 @@ export default function ServiceDetails() {
   const [error, setError] = useState<Error | null>(null);
   const [viewMode, , toggleViewMode] = useViewPreference();
 
+  // Get namespace hint from URL query params (passed from ServiceList)
+  const namespaceHint = searchParams.get('ns');
+
   const loadData = useCallback(async () => {
     if (!name) return;
 
     try {
       setLoading(true);
-      const ns = namespace === ALL_NAMESPACES ? '*' : namespace;
-      const data = await getService(name, ns);
+      let data: ServiceRegistration[];
+      
+      // Priority: 1) URL namespace hint, 2) Context namespace, 3) All namespaces
+      if (namespaceHint) {
+        // Use the namespace hint from URL (most specific)
+        data = await getService(name, namespaceHint);
+      } else if (namespace !== ALL_NAMESPACES) {
+        // Use the selected namespace from context
+        data = await getService(name, namespace);
+      } else {
+        // All namespaces - discover and query each
+        data = await getServiceAllNamespaces(name);
+      }
+      
       setRegistrations(data || []);
       setError(null);
     } catch (err) {
@@ -218,7 +234,7 @@ export default function ServiceDetails() {
     } finally {
       setLoading(false);
     }
-  }, [name, namespace]);
+  }, [name, namespace, namespaceHint]);
 
   useEffect(() => {
     loadData();

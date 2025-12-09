@@ -42,6 +42,12 @@ interface EnhancedService {
   Addresses?: string[];
 }
 
+// Helper to create service detail URL with namespace hint
+function getServiceDetailUrl(serviceName: string, namespace: string) {
+  const baseUrl = createRouteURL('nomadService', { name: serviceName });
+  return `${baseUrl}?ns=${encodeURIComponent(namespace)}`;
+}
+
 // Service card component
 function ServiceCard({ service }: { service: EnhancedService }) {
   const theme = useTheme();
@@ -79,7 +85,7 @@ function ServiceCard({ service }: { service: EnhancedService }) {
             <Box>
               <Link
                 component={RouterLink}
-                to={createRouteURL('nomadService', { name: service.ServiceName })}
+                to={getServiceDetailUrl(service.ServiceName, service.Namespace)}
                 sx={{
                   fontWeight: 600,
                   textDecoration: 'none',
@@ -338,7 +344,7 @@ export default function ServiceList() {
                 getter: (service: EnhancedService) => (
                   <Link
                     component={RouterLink}
-                    to={createRouteURL('nomadService', { name: service.ServiceName })}
+                    to={getServiceDetailUrl(service.ServiceName, service.Namespace)}
                     sx={{ fontWeight: 500 }}
                   >
                     {service.ServiceName}

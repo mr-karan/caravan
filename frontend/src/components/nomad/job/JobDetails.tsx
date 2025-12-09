@@ -56,112 +56,29 @@ function TabPanel({ children, value, index, ...other }: TabPanelProps) {
   );
 }
 
-// JSON Syntax Highlighter component
-function JsonSyntaxHighlight({ json }: { json: string }) {
+// Simple JSON view component (plain text, no highlighting to avoid memory issues)
+function JsonView({ json }: { json: string }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const colors = {
-    key: isDark ? '#9cdcfe' : '#0451a5',
-    string: isDark ? '#ce9178' : '#a31515',
-    number: isDark ? '#b5cea8' : '#098658',
-    boolean: isDark ? '#569cd6' : '#0000ff',
-    null: isDark ? '#569cd6' : '#0000ff',
-    punctuation: isDark ? '#d4d4d4' : '#000000',
-  };
-
-  const highlightJson = (jsonStr: string): React.ReactNode[] => {
-    const lines = jsonStr.split('\n');
-    
-    return lines.map((line, lineIndex) => {
-      const parts: React.ReactNode[] = [];
-      let remaining = line;
-      let keyIndex = 0;
-
-      // Match patterns in order
-      const patterns = [
-        { regex: /^(\s*)/, type: 'whitespace' },
-        { regex: /"([^"\\]|\\.)*"\s*:/, type: 'key' },
-        { regex: /"([^"\\]|\\.)*"/, type: 'string' },
-        { regex: /-?\d+\.?\d*([eE][+-]?\d+)?/, type: 'number' },
-        { regex: /\b(true|false)\b/, type: 'boolean' },
-        { regex: /\bnull\b/, type: 'null' },
-        { regex: /[{}\[\],:]/, type: 'punctuation' },
-      ];
-
-      while (remaining.length > 0) {
-        let matched = false;
-
-        for (const { regex, type } of patterns) {
-          const match = remaining.match(regex);
-          if (match && match.index === 0) {
-            const value = match[0];
-            
-            if (type === 'whitespace') {
-              parts.push(<span key={`${lineIndex}-${keyIndex++}`}>{value}</span>);
-            } else if (type === 'key') {
-              // Split key into the string part and the colon
-              const keyMatch = value.match(/"([^"\\]|\\.)*"/);
-              if (keyMatch) {
-                parts.push(
-                  <span key={`${lineIndex}-${keyIndex++}`} style={{ color: colors.key }}>
-                    {keyMatch[0]}
-                  </span>
-                );
-                parts.push(
-                  <span key={`${lineIndex}-${keyIndex++}`} style={{ color: colors.punctuation }}>
-                    {value.slice(keyMatch[0].length)}
-                  </span>
-                );
-              }
-            } else {
-              parts.push(
-                <span
-                  key={`${lineIndex}-${keyIndex++}`}
-                  style={{ color: colors[type as keyof typeof colors] }}
-                >
-                  {value}
-                </span>
-              );
-            }
-
-            remaining = remaining.slice(value.length);
-            matched = true;
-            break;
-          }
-        }
-
-        if (!matched) {
-          // No pattern matched, add single character and continue
-          parts.push(<span key={`${lineIndex}-${keyIndex++}`}>{remaining[0]}</span>);
-          remaining = remaining.slice(1);
-        }
-      }
-
-      return (
-        <div key={lineIndex} style={{ minHeight: '1.4em' }}>
-          {parts.length > 0 ? parts : '\n'}
-        </div>
-      );
-    });
-  };
-
   return (
     <Box
+      component="pre"
       sx={{
         fontFamily: '"Fira Code", "JetBrains Mono", "SF Mono", Consolas, monospace',
         fontSize: '0.8rem',
         lineHeight: 1.5,
         p: 2,
+        m: 0,
         overflow: 'auto',
         maxHeight: 600,
         backgroundColor: isDark ? '#1e1e1e' : '#f8f8f8',
-        '& ::selection': {
-          backgroundColor: isDark ? '#264f78' : '#add6ff',
-        },
+        color: isDark ? '#d4d4d4' : '#333',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
       }}
     >
-      {highlightJson(json)}
+      {json}
     </Box>
   );
 }
@@ -1325,7 +1242,7 @@ export default function JobDetails() {
               </IconButton>
             </Tooltip>
           </Box>
-          <JsonSyntaxHighlight json={JSON.stringify(job, null, 2)} />
+          <JsonView json={JSON.stringify(job, null, 2)} />
         </Paper>
       </TabPanel>
 

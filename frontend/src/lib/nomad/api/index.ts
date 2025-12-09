@@ -63,7 +63,7 @@ export {
 export type { ListDeploymentsParams } from './deployments';
 
 // Services API
-export { listServices, getService } from './services';
+export { listServices, getService, getServiceAllNamespaces } from './services';
 export type { ListServicesParams, ServiceListStub } from './services';
 
 // ACL API
