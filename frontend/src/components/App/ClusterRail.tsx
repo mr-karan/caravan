@@ -32,7 +32,6 @@ import {
   getClusterGroups,
   getClusterPreferences,
   getClusterSortOrder,
-  getRecentClusters,
   setLastCluster,
   toggleGroupCollapsed,
   updateClusterSortOrders,
@@ -671,14 +670,6 @@ export default function ClusterRail({ onAddCluster }: ClusterRailProps) {
       .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   }, [clusters, preferences]);
 
-  // Recent clusters
-  const recentClusters = useMemo(() => {
-    const recent = getRecentClusters();
-    return recent
-      .filter(name => clusters[name]) // Only include existing clusters
-      .slice(0, 3);
-  }, [clusters]);
-
   // Group clusters
   const groupedClusters = useMemo(() => {
     const grouped: Record<string, typeof clusterList> = { ungrouped: [] };
@@ -980,52 +971,7 @@ export default function ClusterRail({ onAddCluster }: ClusterRailProps) {
           </IconButton>
         </Tooltip>
 
-        {/* Recent clusters section */}
-        {recentClusters.length > 0 && recentClusters[0] !== currentCluster && (
-          <>
-            <Tooltip title="Recent" placement="right">
-              <Typography
-                variant="caption"
-                sx={{
-                  fontSize: '0.6rem',
-                  opacity: 0.5,
-                  letterSpacing: '0.5px',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Recent
-              </Typography>
-            </Tooltip>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1 }}>
-              {recentClusters
-                .filter(name => name !== currentCluster)
-                .slice(0, 2)
-                .map(name => {
-                  const cluster = clusterList.find(c => c.name === name);
-                  if (!cluster) return null;
-                  return (
-                    <ClusterRailItem
-                      key={`recent-${name}`}
-                      name={name}
-                      server={cluster.server}
-                      isActive={false}
-                      health={clusterHealth[name] || null}
-                      loading={loading}
-                      index={-1}
-                      customColor={cluster.customColor}
-                      emoji={cluster.emoji}
-                      lastActivity={cluster.lastActivity}
-                      statusChanged={statusChanged[name]}
-                      onClick={() => handleClusterSelect(name)}
-                      onContextMenu={handleContextMenu}
-                      onCustomize={handleCustomize}
-                    />
-                  );
-                })}
-            </Box>
-            <Divider sx={{ width: 32, mb: 1 }} />
-          </>
-        )}
+        <Divider sx={{ width: 32, my: 1 }} />
 
         {/* Cluster list - grouped or ungrouped */}
         <Box

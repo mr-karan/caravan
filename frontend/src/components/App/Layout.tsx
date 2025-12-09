@@ -171,24 +171,34 @@ export default function Layout({}: LayoutProps) {
   // Per-cluster view state persistence (namespace filters, etc.)
   useClusterViewState({ autoSave: true });
 
-  // Auto-select last used cluster on app start
+  // Auto-select last used cluster ONLY on initial app load (not on navigation to /clusters)
+  // We use sessionStorage to track if this is a fresh page load vs navigation
   useEffect(() => {
     if (hasAutoSelectedCluster || !ready || !clusters) return;
     
-    // Only auto-select if we're on the home/clusters page
-    if (location.pathname !== '/' && location.pathname !== '/clusters') return;
+    // Only auto-redirect on fresh app load, not when user navigates to /clusters
+    const hasNavigatedInSession = sessionStorage.getItem('caravan_session_started');
+    if (hasNavigatedInSession) {
+      setHasAutoSelectedCluster(true);
+      return;
+    }
+    
+    // Mark session as started
+    sessionStorage.setItem('caravan_session_started', 'true');
+    
+    // Only auto-select if we're on the home/clusters page (initial load)
+    if (location.pathname !== '/' && location.pathname !== '/clusters') {
+      setHasAutoSelectedCluster(true);
+      return;
+    }
     
     const lastCluster = getLastCluster();
-    if (lastCluster && clusters[lastCluster]) {
+    if (lastCluster && clusters[lastCluster] && hasClusterToken(lastCluster)) {
       setHasAutoSelectedCluster(true);
-      
-      // Check if we have a valid token for this cluster
-      if (hasClusterToken(lastCluster)) {
-        // Small delay to let the UI settle
-        setTimeout(() => {
-          navigate(createRouteURL('nomadCluster', { cluster: lastCluster }));
-        }, 100);
-      }
+      // Small delay to let the UI settle
+      setTimeout(() => {
+        navigate(createRouteURL('nomadCluster', { cluster: lastCluster }));
+      }, 100);
     } else {
       setHasAutoSelectedCluster(true);
     }
