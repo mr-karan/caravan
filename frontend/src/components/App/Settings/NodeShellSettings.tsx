@@ -1,26 +1,9 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { Icon } from '@iconify/react';
 import { Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import {
   ClusterSettings,
   DEFAULT_NODE_SHELL_LINUX_IMAGE,
@@ -44,7 +27,7 @@ interface SettingsProps {
 
 export default function NodeShellSettings(props: SettingsProps) {
   const { cluster } = props;
-  const { t } = useTranslation(['translation']);
+  
   const theme = useTheme();
   const [clusterSettings, setClusterSettings] = useState<ClusterSettings | null>(null);
   const [userNamespace, setUserNamespace] = useState('');
@@ -77,9 +60,8 @@ export default function NodeShellSettings(props: SettingsProps) {
   //const selectedClusterData = data?.[selectedCluster] || {};
   //const isEnabled = selectedClusterData.isEnabled ?? true;
   const isValidNamespace = isValidNamespaceFormat(userNamespace);
-  const invalidNamespaceMessage = t(
-    "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
-  );
+  const invalidNamespaceMessage =
+    "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.";
 
   function isEditingNamespace() {
     return clusterSettings?.nodeShellTerminal?.namespace !== userNamespace;
@@ -177,7 +159,7 @@ export default function NodeShellSettings(props: SettingsProps) {
   }, [userImage]);
 
   return (
-    <SectionBox title={t('translation|Node Shell Settings')} headerProps={{ headerStyle: 'label' }}>
+    <SectionBox title="Node Shell Settings" headerProps={{ headerStyle: 'label' }}>
       <NameValueTable
         rows={[
           {
@@ -204,9 +186,7 @@ export default function NodeShellSettings(props: SettingsProps) {
                 }}
                 value={userImage}
                 placeholder={DEFAULT_NODE_SHELL_LINUX_IMAGE}
-                helperText={t(
-                  'translation|The default image is used for dropping a shell into a node (when not specified directly).'
-                )}
+                helperText="The default image is used for dropping a shell into a node (when not specified directly)."
                 variant="outlined"
                 size="small"
                 InputProps={{
@@ -238,7 +218,7 @@ export default function NodeShellSettings(props: SettingsProps) {
                 error={!isValidNamespace}
                 helperText={
                   isValidNamespace
-                    ? t('translation|The default namespace is default.')
+                    ? 'The default namespace is default.'
                     : invalidNamespaceMessage
                 }
                 variant="outlined"

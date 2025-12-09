@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/caravan-nomad/caravan/backend/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,7 +77,7 @@ var ParseWithEnvTests = []struct {
 		name: "from_env",
 		args: []string{"go run ./cmd", "-in-cluster"},
 		env: map[string]string{
-			"HEADLAMP_CONFIG_OIDC_CLIENT_SECRET": "superSecretBotsStayAwayPlease",
+			"CARAVAN_CONFIG_OIDC_CLIENT_SECRET": "superSecretBotsStayAwayPlease",
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, "superSecretBotsStayAwayPlease", conf.OidcClientSecret)
@@ -87,7 +87,7 @@ var ParseWithEnvTests = []struct {
 		name: "both_args_and_env",
 		args: []string{"go run ./cmd", "--port=9876"},
 		env: map[string]string{
-			"HEADLAMP_CONFIG_PORT": "1234",
+			"CARAVAN_CONFIG_PORT": "1234",
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.NotEqual(t, uint(1234), conf.Port)
@@ -98,10 +98,10 @@ var ParseWithEnvTests = []struct {
 		name: "me_paths",
 		args: []string{"go run ./cmd"},
 		env: map[string]string{
-			"HEADLAMP_CONFIG_ME_USERNAME_PATH": "user.name",
-			"HEADLAMP_CONFIG_ME_EMAIL_PATH":    "user.email",
-			"HEADLAMP_CONFIG_ME_GROUPS_PATH":   "user.groups",
-			"HEADLAMP_CONFIG_ME_USER_INFO_URL": "/oauth2/userinfo",
+			"CARAVAN_CONFIG_ME_USERNAME_PATH": "user.name",
+			"CARAVAN_CONFIG_ME_EMAIL_PATH":    "user.email",
+			"CARAVAN_CONFIG_ME_GROUPS_PATH":   "user.groups",
+			"CARAVAN_CONFIG_ME_USER_INFO_URL": "/oauth2/userinfo",
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, "user.name", conf.MeUsernamePath)
@@ -284,7 +284,7 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 			name: "oidc_skip_tls_verify_from_env",
 			args: []string{"go run ./cmd"},
 			env: map[string]string{
-				"HEADLAMP_CONFIG_OIDC_SKIP_TLS_VERIFY": "true",
+				"CARAVAN_CONFIG_OIDC_SKIP_TLS_VERIFY": "true",
 			},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, true, conf.OidcSkipTLSVerify)
@@ -294,7 +294,7 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 			name: "oidc_ca_file_from_env",
 			args: []string{"go run ./cmd"},
 			env: map[string]string{
-				"HEADLAMP_CONFIG_OIDC_CA_FILE": filepath.Join(getTestDataPath(), "valid_ca.pem"),
+				"CARAVAN_CONFIG_OIDC_CA_FILE": filepath.Join(getTestDataPath(), "valid_ca.pem"),
 			},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, filepath.Join(getTestDataPath(), "valid_ca.pem"), conf.OidcCAFile)
@@ -304,8 +304,8 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 			name: "both_tls_options_from_env",
 			args: []string{"go run ./cmd"},
 			env: map[string]string{
-				"HEADLAMP_CONFIG_OIDC_SKIP_TLS_VERIFY": "true",
-				"HEADLAMP_CONFIG_OIDC_CA_FILE":         filepath.Join(getTestDataPath(), "valid_ca.pem"),
+				"CARAVAN_CONFIG_OIDC_SKIP_TLS_VERIFY": "true",
+				"CARAVAN_CONFIG_OIDC_CA_FILE":         filepath.Join(getTestDataPath(), "valid_ca.pem"),
 			},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, true, conf.OidcSkipTLSVerify)

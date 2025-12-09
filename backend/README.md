@@ -1,11 +1,15 @@
-# Quickstart
+# Caravan Backend
+
+Go backend server for Caravan - a Nomad UI dashboard.
+
+## Quickstart
 
 ```bash
-npm run backend:build
-npm run backend:start
+# Build
+just build-backend
+
+# Run
+just run-backend
 ```
 
-See more detailed [Headlamp backend documentation on the web](
-https://headlamp.dev/docs/latest/development/backend/) 
-or in this repo at 
-[../docs/development/backend.md](../docs/development/backend.md).
+See the main [README](../README.md) and [development docs](../docs/development.md) for more information.

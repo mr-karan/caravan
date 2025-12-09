@@ -1,7 +1,6 @@
-# See the OWNERS docs at https://go.k8s.io/owners
+# Caravan project maintainers
 
 approvers:
-- headlamp-maintainers
+- caravan-maintainers
 reviewers:
-- headlamp-maintainers
-- headlamp-reviewers
+- caravan-maintainers

@@ -1,24 +1,9 @@
 /*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-/*
  * This module was taken from the k8dash project.
  */
 
-import _ from 'lodash';
+import indexOf from 'lodash/indexOf';
+import round from 'lodash/round';
 
 const RAM_TYPES = ['Bi', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei'];
 const UNITS = ['B', 'K', 'M', 'G', 'T', 'P', 'E'];
@@ -51,7 +36,7 @@ function parseUnitsOfBytes(value: string): number {
     return number * 10 ** parseInt(groups[4], 10);
   }
 
-  const unitIndex = _.indexOf(UNITS, groups[2]);
+  const unitIndex = indexOf(UNITS, groups[2]);
 
   // Unit + i ex. 1Ki
   if (groups[3] !== undefined) {
@@ -70,7 +55,7 @@ export function unparseRam(value: number) {
   }
 
   return {
-    value: _.round(value, 1),
+    value: round(value, 1),
     unit: RAM_TYPES[i],
   };
 }
@@ -89,7 +74,7 @@ export function unparseCpu(value: string) {
   const result = parseFloat(value);
 
   return {
-    value: _.round(result / 1000000, 2),
+    value: round(result / 1000000, 2),
     unit: 'm',
   };
 }

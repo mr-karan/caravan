@@ -35,16 +35,22 @@ jobs:
       uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
       with:
         node-version: ${{ matrix.node-version }}
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
         go-version: '1.24.*'
     - name: Run tests
-      run: make app-test
+      run: cd app && bun install && bun run test
     - name: Run tsc type checker
-      run: make app-tsc
+      run: cd app && bun run tsc
+    - name: Build frontend
+      run: cd frontend && bun install --frozen-lockfile && bun run build
     - name: App linux
       run: |
-        make app-linux
+        cd app && bun ./scripts/setup-plugins.js && bun run package -- --linux
   build-windows:
     runs-on: windows-2025
     strategy:
@@ -56,19 +62,21 @@ jobs:
       uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
       with:
         node-version: ${{ matrix.node-version }}
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
         go-version: '1.24.*'
-    - name: Dependencies
-      uses: crazy-max/ghaction-chocolatey@e80bd39bb49cae70b67ea53d52d00833a7255c21 # v1.7.0
-      with:
-        args: install make
     - name: Run tests
-      run: make app-test
+      run: cd app && bun install && bun run test
     - name: Run tsc type checker
-      run: make app-tsc
+      run: cd app && bun run tsc
+    - name: Build frontend
+      run: cd frontend && bun install --frozen-lockfile && bun run build
     - name: App Windows
-      run: make app-win
+      run: cd app && bun ./scripts/setup-plugins.js && bun run package -- --win
   build-mac:
     runs-on: macos-latest
     strategy:
@@ -80,15 +88,19 @@ jobs:
       uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
       with:
         node-version: ${{ matrix.node-version }}
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
         go-version: '1.24.*'
-    - name: Dependencies
-      run: brew install make
     - name: Run tests
-      run: make app-test
+      run: cd app && bun install && bun run test
     - name: Run tsc type checker
-      run: make app-tsc
+      run: cd app && bun run tsc
+    - name: Build frontend
+      run: cd frontend && bun install --frozen-lockfile && bun run build
     - name: App Mac
       run: |
-        make app-mac
+        cd app && bun ./scripts/setup-plugins.js && bun run package -- --mac

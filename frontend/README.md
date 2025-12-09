@@ -1,5 +1,5 @@
-# Headlamp Frontend
+# Caravan Frontend
 
-React frontend for the Headlamp.
+React frontend for Caravan - a Nomad UI dashboard.
 
-[Documentation](https://headlamp.dev/docs/latest/development/frontend/)
+See the main [README](../README.md) for more information.

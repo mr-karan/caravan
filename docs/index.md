@@ -3,34 +3,31 @@ title: Introduction
 sidebar_position: 1
 ---
 
-Headlamp is an easy-to-use and extensible Kubernetes web UI.
+# Caravan
 
-Headlamp was created to blend the traditional feature set of other web UIs/dashboards
-(i.e., to list and view resources) with added functionality.
+Caravan is a modern web-based dashboard for [HashiCorp Nomad](https://www.nomadproject.io/), designed for managing and monitoring your Nomad clusters.
 
-Headlamp can be used [in-cluster](./installation/in-cluster), where it's accessed through a web browser,
-or as a [desktop application](./installation/desktop) (using the information defined in the user's
-kubeconfig).
+## Features
 
-## Learn
+- **Multi-cluster Support** - Connect to and manage multiple Nomad clusters from a single interface
+- **Jobs Management** - View, create, stop, and manage Nomad jobs
+- **Allocations** - Monitor allocations, view logs, restart tasks
+- **Nodes** - View cluster nodes, drain nodes, manage eligibility
+- **ACL Support** - Full ACL token authentication support
+- **Real-time Updates** - Live updates via Nomad Event Stream
 
-Learn how to use Headlamp and its unique features in a section dedicated to users. [Learn section](./learn)
+## Getting Started
 
-## Develop
+See the [Getting Started Guide](./getting-started.md) for installation and setup instructions.
 
-Read about how to build Headlamp for different use-cases, or learn how to create a Headlamp Plugin.
+## Documentation
 
-- [Plugins get started guide](./development/plugins/getting-started)
+- [Getting Started](./getting-started.md) - Installation and quick start
+- [Configuration](./configuration.md) - Configuration options and multi-cluster setup
+- [Architecture](./architecture.md) - Technical architecture overview
+- [Development](./development.md) - Contributing and development setup
+- [Roadmap](./roadmap.md) - Planned features and development roadmap
 
-## Get involved
+## License
 
-Check out our:
-
-- [Guidelines](https://headlamp.dev/docs/latest/contributing/)
-- [Code of Conduct](https://github.com/kubernetes/community/blob/master/code-of-conduct.md)
-- [#headlamp](https://kubernetes.slack.com/messages/headlamp) slack channel in the Kubernetes Slack
-- [Monthly Community Meeting](https://zoom-lfx.platform.linuxfoundation.org/meetings/headlamp)
-
-## Frequently Asked Questions
-
-For more information about Headlamp, see the [Headlamp FAQ](./faq.md).
+Caravan is open source software licensed under the Apache 2.0 License.

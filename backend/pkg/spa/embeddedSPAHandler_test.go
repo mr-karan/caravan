@@ -8,7 +8,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
+	"github.com/caravan-nomad/caravan/backend/pkg/spa"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,13 +23,13 @@ func getTestHTML() string {
 	return `<!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Headlamp</title>
+    <title>Caravan</title>
     <script>
         // handles both webpack and rspack build systems
         __baseUrl__ = './<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
         // the syntax of the following line is special - it will be matched and replaced by the server
         // if a base URL is set by the server
-        headlampBaseUrl = __baseUrl__;
+        caravanBaseUrl = __baseUrl__;
     </script>
   </head>
   <body>
@@ -41,8 +41,8 @@ func getTestHTML() string {
 func TestEmbeddedSpaHandler(t *testing.T) {
 	testHTML := getTestHTML()
 
-	t.Run("check_headlampBaseUrl_is_set_to_baseURL", func(t *testing.T) {
-		testHeadlampBaseURLWithBaseURL(t, testHTML)
+	t.Run("check_caravanBaseUrl_is_set_to_baseURL", func(t *testing.T) {
+		testCaravanBaseURLWithBaseURL(t, testHTML)
 	})
 
 	t.Run("check_empty_path_returns_index.html", func(t *testing.T) {
@@ -54,12 +54,12 @@ func TestEmbeddedSpaHandler(t *testing.T) {
 	})
 }
 
-func testHeadlampBaseURLWithBaseURL(t *testing.T, testHTML string) {
+func testCaravanBaseURLWithBaseURL(t *testing.T, testHTML string) {
 	handler := spa.NewEmbeddedHandler(createTestFS(map[string]*fstest.MapFile{
 		"static/index.html": {Data: []byte(testHTML)},
-	}), "index.html", "/headlamp")
+	}), "index.html", "/caravan")
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlamp/index.html", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/caravan/index.html", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -67,8 +67,8 @@ func testHeadlampBaseURLWithBaseURL(t *testing.T, testHTML string) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	// Check that the __baseUrl__ assignment was replaced
-	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
-	assert.Contains(t, rr.Body.String(), "headlampBaseUrl = __baseUrl__;")
+	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/caravan';")
+	assert.Contains(t, rr.Body.String(), "caravanBaseUrl = __baseUrl__;")
 }
 
 func testEmptyPathReturnsIndex(t *testing.T, testHTML string) {
@@ -76,7 +76,7 @@ func testEmptyPathReturnsIndex(t *testing.T, testHTML string) {
 		"static/index.html": {Data: []byte(testHTML)},
 	}), "index.html", "/")
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlamp/", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/caravan/", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -85,15 +85,15 @@ func testEmptyPathReturnsIndex(t *testing.T, testHTML string) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	// When baseURL is "/", the replacement should happen and __baseUrl__ should be set to "/"
 	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/';")
-	assert.Contains(t, rr.Body.String(), "headlampBaseUrl = __baseUrl__;")
+	assert.Contains(t, rr.Body.String(), "caravanBaseUrl = __baseUrl__;")
 }
 
 func testFileNotFound(t *testing.T, testHTML string) {
 	handler := spa.NewEmbeddedHandler(createTestFS(map[string]*fstest.MapFile{
 		"static/index.html": {Data: []byte(testHTML)},
-	}), "index.html", "/headlamp")
+	}), "index.html", "/caravan")
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlamp/not-found.html", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/caravan/not-found.html", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -101,6 +101,6 @@ func testFileNotFound(t *testing.T, testHTML string) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	// Check that the __baseUrl__ assignment was replaced in fallback case
-	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
-	assert.Contains(t, rr.Body.String(), "headlampBaseUrl = __baseUrl__;")
+	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/caravan';")
+	assert.Contains(t, rr.Body.String(), "caravanBaseUrl = __baseUrl__;")
 }

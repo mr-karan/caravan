@@ -1,6 +1,6 @@
 # Telemetry Package
 
-telemetry implementation for Headlamp backend providing distributed tracing, metrics collection, and monitoring capabilities.
+Telemetry implementation for Caravan backend providing distributed tracing, metrics collection, and monitoring capabilities.
 
 ## Architecture
 

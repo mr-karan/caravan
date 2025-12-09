@@ -1,10 +1,10 @@
-../plugins/headlamp-plugin/lib/lib/
-../plugins/headlamp-plugin/lib/assets/
-../plugins/headlamp-plugin/lib/components/
-../plugins/headlamp-plugin/lib/helpers/
-../plugins/headlamp-plugin/lib/i18n/
-../plugins/headlamp-plugin/lib/lib/
-../plugins/headlamp-plugin/lib/plugin/
-../plugins/headlamp-plugin/lib/redux/
-../plugins/headlamp-plugin/lib/resources/
+../plugins/caravan-plugin/lib/lib/
+../plugins/caravan-plugin/lib/assets/
+../plugins/caravan-plugin/lib/components/
+../plugins/caravan-plugin/lib/helpers/
+../plugins/caravan-plugin/lib/i18n/
+../plugins/caravan-plugin/lib/lib/
+../plugins/caravan-plugin/lib/plugin/
+../plugins/caravan-plugin/lib/redux/
+../plugins/caravan-plugin/lib/resources/
 

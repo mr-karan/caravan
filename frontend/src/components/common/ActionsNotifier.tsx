@@ -1,25 +1,9 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import Button from '@mui/material/Button';
 import _ from 'lodash';
 import { useSnackbar } from 'notistack';
 import React, { useRef } from 'react';
 import { useDispatch } from 'react-redux';
-import { useHistory } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { CLUSTER_ACTION_GRACE_PERIOD, ClusterAction } from '../../redux/clusterActionSlice';
 import { useTypedSelector } from '../../redux/hooks';
 
@@ -30,7 +14,8 @@ export interface PureActionsNotifierProps {
 
 function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierProps) {
   const { enqueueSnackbar, closeSnackbar } = useSnackbar();
-  const history = useHistory();
+  const navigate = useNavigate();
+  const location = useLocation();
   const snackbarRefs = useRef<{ [id: string]: string | undefined }>({});
 
   function handleAction(clusterAction: ClusterAction) {
@@ -38,8 +23,8 @@ function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierPr
       return;
     }
 
-    if (clusterAction.url && history.location.pathname !== clusterAction.url) {
-      history.push(clusterAction.url);
+    if (clusterAction.url && location.pathname !== clusterAction.url) {
+      navigate(clusterAction.url);
     }
 
     const action = () => (

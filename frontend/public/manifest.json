@@ -1,6 +1,6 @@
 {
-  "short_name": "Headlamp",
-  "name": "Headlamp Kubernetes Dashboard",
+  "short_name": "Caravan",
+  "name": "Caravan Nomad Dashboard",
   "icons": [
     {
       "src": "favicon.ico",

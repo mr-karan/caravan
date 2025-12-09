@@ -6,7 +6,7 @@ FROM ${IMAGE_BASE} AS image-base
 
 FROM --platform=${BUILDPLATFORM} golang:1.24.10@sha256:58364c0a7d53e26b6e5b83cf186b4e9d5fa078c4f5e728f9d9a7b972f689a84a AS backend-build
 
-WORKDIR /headlamp
+WORKDIR /caravan
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -18,37 +18,37 @@ ENV GOPATH=/go \
 	GOARCH=${TARGETARCH}
 
 # Keep go mod download separated so source changes don't trigger install
-COPY ./backend/go.* /headlamp/backend/
+COPY ./backend/go.* /caravan/backend/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd ./backend && go mod download
 
-COPY ./backend /headlamp/backend
+COPY ./backend /caravan/backend
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    cd ./backend && go build -o ./headlamp-server ./cmd/
+    cd ./backend && go build -o ./caravan-server ./cmd/
 
 FROM --platform=${BUILDPLATFORM} node:22@sha256:4ad2c2b350ab49fb637ab40a269ffe207c61818bb7eb3a4ea122001a0c605e1f AS frontend-build
 
 # We need .git and app/ in order to get the version and git version for the frontend/.env file
 # that's generated when building the frontend.
-COPY .git/ ./headlamp/.git/
+COPY .git/ ./caravan/.git/
 
-COPY app/package.json /headlamp/app/package.json
+COPY app/package.json /caravan/app/package.json
 
 # Keep npm install separated so source changes don't trigger install
-COPY frontend/package*.json /headlamp/frontend/
-WORKDIR /headlamp
+COPY frontend/package*.json /caravan/frontend/
+WORKDIR /caravan
 RUN cd ./frontend && npm ci --only=prod
 
 FROM frontend-build AS frontend
-COPY ./frontend /headlamp/frontend
+COPY ./frontend /caravan/frontend
 
-WORKDIR /headlamp
+WORKDIR /caravan
 
 RUN cd ./frontend && npm run build
 
-RUN echo "*** Built Headlamp with version: ***"
+RUN echo "*** Built Caravan with version: ***"
 RUN cat ./frontend/.env
 
 # Backwards compatibility, move plugin folder to only copy matching plugins.
@@ -78,22 +78,22 @@ FROM image-base AS final
 RUN if command -v apt-get > /dev/null; then \
         apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
-        && addgroup --system headlamp \
-        && adduser --system --ingroup headlamp headlamp \
+        && addgroup --system caravan \
+        && adduser --system --ingroup caravan caravan \
         && rm -rf /var/lib/apt/lists/*; \
     else \
-        addgroup -S headlamp && adduser -S headlamp -G headlamp; \
+        addgroup -S caravan && adduser -S caravan -G caravan; \
     fi
 
-COPY --from=backend-build --link /headlamp/backend/headlamp-server /headlamp/headlamp-server
-COPY --from=frontend --link /headlamp/frontend/build /headlamp/frontend
-COPY --from=frontend --link /headlamp/plugins /headlamp/plugins
-COPY --from=static-plugins --link /plugins /headlamp/static-plugins
+COPY --from=backend-build --link /caravan/backend/caravan-server /caravan/caravan-server
+COPY --from=frontend --link /caravan/frontend/build /caravan/frontend
+COPY --from=frontend --link /caravan/plugins /caravan/plugins
+COPY --from=static-plugins --link /plugins /caravan/static-plugins
 
-RUN chown -R headlamp:headlamp /headlamp
-USER headlamp
+RUN chown -R caravan:caravan /caravan
+USER caravan
 
 EXPOSE 4466
 
-ENV HEADLAMP_STATIC_PLUGINS_DIR=/headlamp/static-plugins
-ENTRYPOINT ["/headlamp/headlamp-server", "-html-static-dir", "/headlamp/frontend", "-plugins-dir", "/headlamp/plugins"]
+ENV CARAVAN_STATIC_PLUGINS_DIR=/caravan/static-plugins
+ENTRYPOINT ["/caravan/caravan-server", "-html-static-dir", "/caravan/frontend", "-plugins-dir", "/caravan/plugins"]

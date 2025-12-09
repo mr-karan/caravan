@@ -1,27 +1,10 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import cloneDeep from 'lodash/cloneDeep';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { generatePath, useHistory } from 'react-router';
+import { generatePath, useNavigate } from 'react-router-dom';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { getRoute } from '../../lib/router';
 import { createRouteURL } from '../../lib/router/createRouteURL';
@@ -106,12 +89,12 @@ function findIndexParentOfSubList(list: SidebarItemProps[], name: string | null)
 // todo open second level tabs on reload
 
 export default function NavigationTabs() {
-  const history = useHistory();
+  const navigate = useNavigate();
   const sidebar = useTypedSelector(state => state.sidebar);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('xs'));
   const isSmallSideBar = useMediaQuery(theme.breakpoints.only('sm'));
-  const { t } = useTranslation();
+  
   const [secondLevelSidebarItems, setSecondLevelTabRoutes] = useState<SidebarItemProps[]>([]);
 
   const listItemsOriginal = useSidebarItems(sidebar.selected.sidebar ?? undefined);
@@ -178,16 +161,14 @@ export default function NavigationTabs() {
 
       const item = subList[index];
       if (item.url && item.useClusterURL && getCluster()) {
-        history.push({
-          pathname: generatePath(getClusterPrefixedPath(item.url), { cluster: getCluster()! }),
-        });
+        navigate(generatePath(getClusterPrefixedPath(item.url), { cluster: getCluster()! }));
       } else if (item.url) {
-        history.push(item.url);
+        navigate(item.url);
       } else {
-        history.push({ pathname: getFullURLOnRoute(item.name, item.isCR, item.subList ?? []) });
+        navigate(getFullURLOnRoute(item.name, item.isCR, item.subList ?? []));
       }
     },
-    [setSecondLevelTabRoutes, subList, navigationItem]
+    [setSecondLevelTabRoutes, subList, navigationItem, navigate]
   );
 
   const tabSecondLevelChangeHandler = useCallback(
@@ -198,24 +179,22 @@ export default function NavigationTabs() {
       const url = secondLevelSidebarItems[index].url;
       const useClusterURL = !!secondLevelSidebarItems[index].useClusterURL;
       if (url && useClusterURL && getCluster()) {
-        history.push({
-          pathname: generatePath(getClusterPrefixedPath(url), { cluster: getCluster()! }),
-        });
+        navigate(generatePath(getClusterPrefixedPath(url), { cluster: getCluster()! }));
       } else if (url) {
-        history.push(url);
+        navigate(url);
       } else {
         if (secondLevelSidebarItems[index].isCR) {
-          history.push({
-            pathname: createRouteURL('customresources', {
+          navigate(
+            createRouteURL('customresources', {
               crd: secondLevelSidebarItems[index].name,
-            }),
-          });
+            })
+          );
         } else {
-          history.push({ pathname: createRouteURL(secondLevelSidebarItems[index].name) });
+          navigate(createRouteURL(secondLevelSidebarItems[index].name));
         }
       }
     },
-    [secondLevelSidebarItems]
+    [secondLevelSidebarItems, navigate]
   );
 
   // Always show the navigation tabs when the sidebar is the small version
@@ -243,7 +222,7 @@ export default function NavigationTabs() {
       return { label: item.label, component: <></> };
     });
   return (
-    <Box mb={2} component="nav" aria-label={t('translation|Main Navigation')}>
+    <Box mb={2} component="nav" aria-label="Main Navigation">
       <Tabs
         tabs={tabRoutes}
         onTabChanged={index => {
@@ -256,7 +235,7 @@ export default function NavigationTabs() {
             paddingTop: theme.spacing(1),
           },
         }}
-        ariaLabel={t('translation|Navigation Tabs')}
+        ariaLabel="Navigation Tabs"
       />
       <Divider />
       {secondLevelTabRoutes !== undefined && secondLevelTabRoutes.length !== 0 && (
@@ -267,7 +246,7 @@ export default function NavigationTabs() {
             onTabChanged={index => {
               tabSecondLevelChangeHandler(index);
             }}
-            ariaLabel={t('translation|Navigation Tabs')}
+            ariaLabel="Navigation Tabs"
           />
           <Divider />
         </>

@@ -1,27 +1,9 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Snackbar from '@mui/material/Snackbar';
 import { styled } from '@mui/system';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
-
 const ColoredSnackbar = styled(Snackbar)({
   '& .MuiSnackbarContent-root': {
     backgroundColor: 'rgb(49, 49, 49)',
@@ -47,7 +29,6 @@ function UpdatePopup({
   skipUpdateHandler,
 }: UpdatePopupProps) {
   const [show, setShow] = React.useState(true);
-  const { t } = useTranslation();
   const [closeSnackError, setCloseSnackError] = React.useState(false);
 
   if (fetchingRelease && !releaseDownloadURL) {
@@ -64,7 +45,7 @@ function UpdatePopup({
           horizontal: 'right',
         }}
         autoHideDuration={5000}
-        message={t('translation|Fetching release information…')}
+        message="Fetching release information…"
         ContentProps={{
           'aria-describedby': 'updatePopup',
         }}
@@ -79,7 +60,7 @@ function UpdatePopup({
                 skipUpdateHandler();
               }}
             >
-              {t('translation|Skip')}
+              Skip
             </Button>
           </React.Fragment>
         }
@@ -98,7 +79,7 @@ function UpdatePopup({
         onClose={() => {
           setCloseSnackError(true);
         }}
-        message={t('translation|Failed to fetch release information')}
+        message="Failed to fetch release information"
         ContentProps={{
           'aria-describedby': 'updatePopup',
         }}
@@ -119,7 +100,7 @@ function UpdatePopup({
           horizontal: 'right',
         }}
         autoHideDuration={5000}
-        message={t('translation|Fetching release information…')}
+        message="Fetching release information…"
         ContentProps={{
           'aria-describedby': 'updatePopup',
         }}
@@ -137,7 +118,7 @@ function UpdatePopup({
                 skipUpdateHandler();
               }}
             >
-              {t('translation|Skip')}
+              Skip
             </Button>
           </React.Fragment>
         }
@@ -153,7 +134,7 @@ function UpdatePopup({
           horizontal: 'right',
         }}
         open={releaseFetchFailed}
-        message={t('translation|Failed to fetch release information')}
+        message="Failed to fetch release information"
         ContentProps={{
           'aria-describedby': 'updatePopup',
         }}
@@ -177,7 +158,7 @@ function UpdatePopup({
       ContentProps={{
         'aria-describedby': 'updatePopup',
       }}
-      message={t('translation|An update is available')}
+      message="An update is available"
       action={
         <React.Fragment>
           <Box display={'flex'} alignItems="center">
@@ -189,7 +170,7 @@ function UpdatePopup({
                   textTransform: 'none',
                 }}
               >
-                {t('translation|Read more')}
+                Read more
               </Button>
             </Box>
             <Box mb={0.5}>
@@ -212,7 +193,7 @@ function UpdatePopup({
                 }}
                 onClick={() => setShow(false)}
               >
-                {t('translation|Dismiss')}
+                Dismiss
               </Button>
             </Box>
           </Box>

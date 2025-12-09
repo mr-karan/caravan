@@ -1,26 +1,10 @@
-/*
-Copyright 2025 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
+// Package logger provides structured logging using Go's standard log/slog package.
 package logger
 
 import (
+	"log/slog"
+	"os"
 	"runtime"
-
-	"github.com/rs/zerolog"
-	zlog "github.com/rs/zerolog/log"
 )
 
 const (
@@ -35,66 +19,113 @@ const (
 // callerDepth is the depth of the caller in the stack.
 const callerDepth = 2
 
-// LogFunc is a function signature for logging.
-type LogFunc func(level uint, str map[string]string, err interface{}, msg string)
+var defaultLogger *slog.Logger
 
-// logFunc holds the actual logging function.
-var logFunc LogFunc = log
-
-// Log logs the message, source file, and line number at the specified level.
-func Log(level uint, str map[string]string, err interface{}, msg string) {
-	logFunc(level, str, err, msg)
+func init() {
+	// Initialize with JSON handler for structured logging
+	defaultLogger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: false, // We add source manually for correct caller info
+	}))
 }
 
-// Log is a wrapper function for logging. It uses zlog package and logs to stdout.
-// It logs the message, source file and line number.
-// It logs the message at the level specified.
-func log(level uint, str map[string]string, err interface{}, msg string) {
-	var event *zerolog.Event
+// SetLogger allows setting a custom logger (useful for testing).
+func SetLogger(l *slog.Logger) {
+	defaultLogger = l
+}
 
-	switch level {
-	case LevelInfo:
-		event = zlog.Info()
-	case LevelWarn:
-		event = zlog.Warn()
-	case LevelError:
-		event = zlog.Error()
-	default:
-		event = zlog.Info()
+// GetLogger returns the current logger instance.
+func GetLogger() *slog.Logger {
+	return defaultLogger
+}
+
+// Log logs the message at the specified level with optional attributes.
+// This maintains backwards compatibility with the old logger interface.
+func Log(level uint, attrs map[string]string, err interface{}, msg string) {
+	// If a custom log function is set, use it instead
+	if logFunc != nil {
+		logFunc(level, attrs, err, msg)
+		return
 	}
-
-	for k, v := range str {
-		event.Str(k, v)
-	}
-
+	// Get caller info
 	_, file, line, ok := runtime.Caller(callerDepth)
-	if ok {
-		event.Str("source", file)
-		event.Int("line", line)
+
+	// Build attributes slice
+	slogAttrs := make([]any, 0, len(attrs)*2+4)
+
+	// Add custom attributes
+	for k, v := range attrs {
+		slogAttrs = append(slogAttrs, k, v)
 	}
 
-	// Handle errors
+	// Add source info
+	if ok {
+		slogAttrs = append(slogAttrs, "source", file, "line", line)
+	}
+
+	// Add error if present
 	if err != nil {
 		switch e := err.(type) {
 		case error:
-			event.Err(e).Msg(msg)
+			slogAttrs = append(slogAttrs, "error", e.Error())
 		case []error:
-			event.Errs("error", e).Msg(msg)
-		case int:
-			event.Int("error", e).Msg(msg)
-		case string:
-			event.Str("error", e).Msg(msg)
+			errStrs := make([]string, len(e))
+			for i, er := range e {
+				errStrs[i] = er.Error()
+			}
+			slogAttrs = append(slogAttrs, "errors", errStrs)
 		default:
-			event.Interface("error", e).Msg(msg)
+			slogAttrs = append(slogAttrs, "error", e)
 		}
-	} else {
-		event.Msg(msg)
+	}
+
+	// Log at appropriate level
+	switch level {
+	case LevelInfo:
+		defaultLogger.Info(msg, slogAttrs...)
+	case LevelWarn:
+		defaultLogger.Warn(msg, slogAttrs...)
+	case LevelError:
+		defaultLogger.Error(msg, slogAttrs...)
+	default:
+		defaultLogger.Info(msg, slogAttrs...)
 	}
 }
 
-// SetLogFunc sets the logging function.
-func SetLogFunc(lf LogFunc) LogFunc {
-	logFunc = lf
+// Info logs at info level.
+func Info(msg string, args ...any) {
+	defaultLogger.Info(msg, args...)
+}
 
-	return logFunc
+// Warn logs at warn level.
+func Warn(msg string, args ...any) {
+	defaultLogger.Warn(msg, args...)
+}
+
+// Error logs at error level.
+func Error(msg string, args ...any) {
+	defaultLogger.Error(msg, args...)
+}
+
+// Debug logs at debug level.
+func Debug(msg string, args ...any) {
+	defaultLogger.Debug(msg, args...)
+}
+
+// With returns a logger with the given attributes.
+func With(args ...any) *slog.Logger {
+	return defaultLogger.With(args...)
+}
+
+// LogFunc is a function signature for logging (backwards compatibility).
+type LogFunc func(level uint, str map[string]string, err interface{}, msg string)
+
+// logFunc holds the custom logging function (nil means use default slog).
+var logFunc LogFunc
+
+// SetLogFunc sets the logging function (backwards compatibility).
+// Returns the previous log function.
+func SetLogFunc(lf LogFunc) LogFunc {
+	old := logFunc
+	logFunc = lf
+	return old
 }

@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { Box } from '@mui/system';
 import { useMemo } from 'react';
 import { AppTheme } from '../../../lib/AppTheme';
@@ -59,7 +43,7 @@ export function ThemePreview({ theme, size = 50 }: { theme: AppTheme; size?: num
           background: muiTheme.palette.sidebar.selectedBackground,
           zIndex: 1,
           height: '5px',
-          borderRadius: muiTheme.shape.borderRadius / 4 + 'px',
+          borderRadius: Number(muiTheme.shape.borderRadius) / 4 + 'px',
         }}
       />
 
@@ -73,7 +57,7 @@ export function ThemePreview({ theme, size = 50 }: { theme: AppTheme; size?: num
           height: '22%',
           background: muiTheme.palette.background.muted,
           zIndex: 2,
-          borderRadius: muiTheme.shape.borderRadius / 4 + 'px',
+          borderRadius: Number(muiTheme.shape.borderRadius) / 4 + 'px',
           border: '1px solid',
           borderColor: muiTheme.palette.divider,
         }}
@@ -89,7 +73,7 @@ export function ThemePreview({ theme, size = 50 }: { theme: AppTheme; size?: num
           height: '22%',
           background: muiTheme.palette.background.muted,
           zIndex: 2,
-          borderRadius: muiTheme.shape.borderRadius / 4 + 'px',
+          borderRadius: Number(muiTheme.shape.borderRadius) / 4 + 'px',
           border: '1px solid',
           borderColor: muiTheme.palette.divider,
         }}

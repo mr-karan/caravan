@@ -1,26 +1,9 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import Box from '@mui/material/Box';
 import MuiDialog, { DialogProps as MuiDialogProps } from '@mui/material/Dialog';
 import MuiDialogTitle, { DialogTitleProps } from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import ActionButton from './ActionButton';
 
 // We export the ConfirmDialog from here because it was declared in this file before being
@@ -58,7 +41,7 @@ export function DialogTitle(props: OurDialogTitleProps) {
   return (
     <MuiDialogTitle style={{ display: 'flex' }} {...other}>
       <Grid container justifyContent="space-between" alignItems="center">
-        <Grid item>
+        <Grid>
           {disableTypography ? (
             children
           ) : (
@@ -76,7 +59,7 @@ export function DialogTitle(props: OurDialogTitleProps) {
           )}
         </Grid>
         {buttons && buttons.length > 0 && (
-          <Grid item>
+          <Grid>
             <Box>
               {buttons.map((button, index) => {
                 return <React.Fragment key={index}>{button}</React.Fragment>;
@@ -110,7 +93,7 @@ export function Dialog(props: DialogProps) {
     ...other
   } = props;
   const [fullScreen, setFullScreen] = React.useState(false);
-  const { t } = useTranslation();
+  
 
   function handleFullScreen() {
     setFullScreen(fs => {
@@ -131,7 +114,7 @@ export function Dialog(props: DialogProps) {
 
     return (
       <ActionButton
-        description={t('Toggle fullscreen')}
+        description="Toggle fullscreen"
         onClick={handleFullScreen}
         icon={fullScreen ? 'mdi:fullscreen-exit' : 'mdi:fullscreen'}
       />
@@ -141,7 +124,7 @@ export function Dialog(props: DialogProps) {
   function CloseButton() {
     return (
       <ActionButton
-        description={t('Close')}
+        description="Close"
         onClick={() => {
           props.onClose && props.onClose({}, 'escapeKeyDown');
         }}

@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogContent from '@mui/material/DialogContent';
@@ -23,10 +7,9 @@ import Paper from '@mui/material/Paper';
 import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
-import _ from 'lodash';
+import uniqueId from 'lodash/uniqueId';
 import React, { ReactNode, useEffect } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { useTranslation } from 'react-i18next';
 import ActionButton from './ActionButton';
 import { Dialog, DialogProps } from './Dialog';
 
@@ -63,7 +46,6 @@ export function LogViewer(props: LogViewerProps) {
     showReconnectButton = false,
     ...other
   } = props;
-  const { t } = useTranslation();
   const xtermRef = React.useRef<XTerminal | null>(null);
   const fitAddonRef = React.useRef<any>(null);
   const searchAddonRef = React.useRef<any>(null);
@@ -175,30 +157,30 @@ export function LogViewer(props: LogViewerProps) {
       })}
     >
       <Grid container justifyContent="space-between" alignItems="center" wrap="nowrap">
-        <Grid item container spacing={1}>
+        <Grid container spacing={1}>
           {topActions.map((component, i) => (
-            <Grid item key={i}>
+            <Grid key={i}>
               {component}
             </Grid>
           ))}
         </Grid>
-        <Grid item xs>
+        <Grid size="grow">
           <ActionButton
-            description={t('translation|Find')}
+            description="Find"
             onClick={() => setShowSearch(show => !show)}
             icon="mdi:magnify"
           />
         </Grid>
-        <Grid item xs>
+        <Grid size="grow">
           <ActionButton
-            description={t('translation|Clear')}
+            description="Clear"
             onClick={() => clearPodLogs(xtermRef)}
             icon="mdi:broom"
           />
         </Grid>
-        <Grid item xs>
+        <Grid size="grow">
           <ActionButton
-            description={t('Download')}
+            description="Download"
             onClick={downloadLog}
             icon="mdi:file-download-outline"
           />
@@ -292,7 +274,6 @@ export function SearchPopover(props: SearchPopoverProps) {
   const [caseSensitiveChecked, setCaseSensitiveChecked] = React.useState<boolean>(false);
   const [wholeWordMatchChecked, setWholeWordMatchChecked] = React.useState<boolean>(false);
   const [regexChecked, setRegexChecked] = React.useState<boolean>(false);
-  const { t } = useTranslation(['translation']);
   const focusedRef = React.useCallback(
     (node: HTMLInputElement) => {
       if (open && !!node) {
@@ -303,7 +284,7 @@ export function SearchPopover(props: SearchPopoverProps) {
     [open]
   );
 
-  const randomId = _.uniqueId('search-input-');
+  const randomId = uniqueId('search-input-');
 
   const searchAddonTextDecorationOptions: ISearchOptions['decorations'] = {
     matchBackground: '#6d402a',
@@ -389,21 +370,18 @@ export function SearchPopover(props: SearchPopoverProps) {
     let color = grayText;
     let msg = '';
     if (!searchText) {
-      msg = t('translation|No results');
+      msg = 'No results';
     } else if (!searchResult) {
-      msg = t('translation|Too many matches');
+      msg = 'Too many matches';
       color = redText;
     } else {
       if (searchResult.resultCount === 0) {
-        msg = t('translation|No results');
+        msg = 'No results';
         color = redText;
       } else {
-        msg = t('translation|{{ currentIndex }} of {{ totalResults }}', {
-          currentIndex:
-            searchResult?.resultIndex !== undefined ? searchResult?.resultIndex + 1 : '?',
-          totalResults:
-            searchResult?.resultCount === undefined ? '999+' : searchResult?.resultCount,
-        });
+        const currentIndex = searchResult?.resultIndex !== undefined ? searchResult?.resultIndex + 1 : '?';
+        const totalResults = searchResult?.resultCount === undefined ? '999+' : searchResult?.resultCount;
+        msg = `${currentIndex} of ${totalResults}`;
       }
     }
 
@@ -483,7 +461,7 @@ export function SearchPopover(props: SearchPopoverProps) {
         <InputBase
           value={searchText}
           onChange={onSearchTextChange}
-          placeholder={t('translation|Find')}
+          placeholder="Find"
           inputProps={{ autoComplete: 'off', type: 'text', name: randomId, id: randomId }}
           onKeyDown={handleInputKeyDown}
           inputRef={focusedRef}
@@ -491,7 +469,7 @@ export function SearchPopover(props: SearchPopoverProps) {
         <ActionButton
           icon="mdi:format-letter-case"
           onClick={() => setCaseSensitiveChecked(!caseSensitiveChecked)}
-          description={t('translation|Match case')}
+          description="Match case"
           iconButtonProps={{
             className: caseSensitiveChecked ? 'checked' : '',
           }}
@@ -499,7 +477,7 @@ export function SearchPopover(props: SearchPopoverProps) {
         <ActionButton
           icon="mdi:format-letter-matches"
           onClick={() => setWholeWordMatchChecked(!wholeWordMatchChecked)}
-          description={t('translation|Match whole word')}
+          description="Match whole word"
           iconButtonProps={{
             className: wholeWordMatchChecked ? 'checked' : '',
           }}
@@ -507,7 +485,7 @@ export function SearchPopover(props: SearchPopoverProps) {
         <ActionButton
           icon="mdi:regex"
           onClick={() => setRegexChecked(!regexChecked)}
-          description={t('translation|Use regular expression')}
+          description="Use regular expression"
           iconButtonProps={{
             className: regexChecked ? 'checked' : '',
           }}
@@ -518,7 +496,7 @@ export function SearchPopover(props: SearchPopoverProps) {
         <ActionButton
           icon="mdi:arrow-up"
           onClick={handleFindPrevious}
-          description={t('translation|Previous Match (Shift+Enter)')}
+          description="Previous Match (Shift+Enter)"
           iconButtonProps={{
             disabled: !searchResult?.resultCount && searchResult?.resultCount !== undefined,
           }}
@@ -526,12 +504,12 @@ export function SearchPopover(props: SearchPopoverProps) {
         <ActionButton
           icon="mdi:arrow-down"
           onClick={handleFindNext}
-          description={t('translation|Next Match (Enter)')}
+          description="Next Match (Enter)"
           iconButtonProps={{
             disabled: !searchResult?.resultCount && searchResult?.resultCount !== undefined,
           }}
         />
-        <ActionButton icon="mdi:close" onClick={handleClose} description={t('translation|Close')} />
+        <ActionButton icon="mdi:close" onClick={handleClose} description="Close" />
       </div>
     </Paper>
   );

@@ -1,110 +1,108 @@
-<h1>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="frontend/src/resources/logo-light.svg">
-    <img src="frontend/src/resources/logo-dark.svg" alt="Headlamp">
-  </picture>
-</h1>
+# Caravan
 
-> **NOTICE:** We have recently moved the project under the Kubernetes SIG UI (and the repo under the _kubernetes-sigs_ org). Container images are still at [ghcr.io](https://github.com/orgs/headlamp-k8s/packages). Please bear with us while we may experience some broken links.
+A modern web UI for [HashiCorp Nomad](https://www.nomadproject.io/) with multi-cluster support.
 
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/7551/badge)](https://www.bestpractices.dev/projects/7551)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/kubernetes-sigs/headlamp/badge)](https://scorecard.dev/viewer/?uri=github.com/kubernetes-sigs/headlamp)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fheadlamp-k8s%2Fheadlamp.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fheadlamp-k8s%2Fheadlamp?ref=badge_shield)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 
-Headlamp is an easy-to-use and extensible Kubernetes web UI.
+## About
 
-Headlamp was created to blend the traditional feature set of other web UIs/dashboards
-(i.e., to list and view resources) with added functionality.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/videos/headlamp_quick_run.gif" width="80%">
-</div>
+Caravan is a fork of [Headlamp](https://github.com/headlamp-k8s/headlamp), originally a Kubernetes dashboard. It has been extensively modified to work with HashiCorp Nomad instead of Kubernetes, providing a clean and intuitive interface for managing your Nomad clusters.
 
 ## Features
 
-- Vendor-independent / generic Kubernetes UI
-- Works in-cluster, or locally as a desktop app
-- Multi-cluster
-- Extensible through [plugins](https://github.com/headlamp-k8s/plugins)
-- UI controls reflecting user roles (no deletion/update if not allowed)
-- Clean & modern UI
-- Cancellable creation/update/deletion operations
-- Logs, exec, and resource editor with documentation
-- Read-write / interactive (actions based on permissions)
+- **Jobs** - View, manage, and monitor Nomad jobs
+- **Allocations** - Track allocation status, view logs, restart tasks
+- **Nodes** - Monitor cluster nodes, manage drain and eligibility
+- **Multi-cluster** - Connect to multiple Nomad clusters from a single UI
+- **ACL Support** - Full ACL token authentication
 
-## Screenshots
+## Quick Start
 
-<table>
-    <tr>
-        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/home.png"></td>
-        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/cluster_chooser.png"></td>
-    </tr>
-    <tr>
-        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/workloads.png"></td>
-        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/resource_edition.png"></td>
-    </tr>
-    <tr>
-        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/logs.png"></td>
-        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/terminal.png"></td>
-    </tr>
-</table>
+### Prerequisites
 
-## Quickstart
+- Go 1.21+
+- Node.js 18+ or Bun
+- A running Nomad cluster
 
-If you want to deploy Headlamp in your cluster, check out the instructions on running it [in-cluster](https://headlamp.dev/docs/latest/installation/in-cluster/).
+### Build & Run
 
-If you have a kubeconfig already, you can quickly try Headlamp locally as a
-[desktop application](https://headlamp.dev/docs/latest/installation/desktop/)
-for [Linux](https://headlamp.dev/docs/latest/installation/desktop/linux-installation),
-[Mac](https://headlamp.dev/docs/latest/installation/desktop/mac-installation),
-or [Windows](https://headlamp.dev/docs/latest/installation/desktop/win-installation).
-**Make sure** you have a kubeconfig file set up with your favorite clusters and
-in the default path so Headlamp can use it.
+```bash
+# Clone the repo
+git clone https://github.com/yourusername/caravan.git
+cd caravan
 
-### Accessing
+# Install dependencies
+just install
 
-Headlamp uses [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac) for checking
-users' access to resources. If you try Headlamp with a token that has very limited
-permissions, you may not be able to view your cluster resources correctly.
+# Set Nomad address
+export NOMAD_ADDR=http://localhost:4646
 
-See the documentation on [how to easily get a Service Account token](https://headlamp.dev/docs/latest/installation#create-a-service-account-token) for your cluster.
+# Build and run
+just build
+just run-backend
+```
 
-## Tested platforms
+Open http://localhost:4466 in your browser.
 
-We maintain a list of the [Kubernetes platforms](./docs/platforms.md) we have
-tested Headlamp with. We invite you to add any missing platforms you have
-tested, or comment if there are any regressions in the existing ones.
+### Development Mode
 
-## Extensions / Plugins
+```bash
+# Run with hot reload
+just dev
+```
 
-Please see [headlamp plugins on Artifact Hub](https://artifacthub.io/packages/search?kind=21&sort=relevance&page=1) for a list of plugins published.
+## Multi-Cluster Setup
 
-See the [plugins repo](https://github.com/headlamp-k8s/plugins) for some official plugins.
+```bash
+# Define clusters
+export CARAVAN_CLUSTERS=prod,staging,local
 
-### Plugin development
+# Production
+export NOMAD_ADDR_PROD=https://nomad.prod.example.com:4646
+export NOMAD_TOKEN_PROD=your-token
 
-If you are interested in tweaking Headlamp to fit your use-cases, you can check out
-our [plugin development guide](https://headlamp.dev/docs/latest/development/plugins/).
+# Staging
+export NOMAD_ADDR_STAGING=https://nomad.staging.example.com:4646
 
+# Local
+export NOMAD_ADDR_LOCAL=http://localhost:4646
+```
 
-## Get involved
+## Documentation
 
-Check out our: 
-- [Guidelines](https://headlamp.dev/docs/latest/contributing/)
-- [Code of Conduct](./code-of-conduct.md),
-- [#headlamp](https://kubernetes.slack.com/messages/headlamp) slack channel in the Kubernetes Slack 
-- [Monthly Community Meeting](https://zoom-lfx.platform.linuxfoundation.org/meetings/headlamp)
+- [Getting Started](./docs/getting-started.md)
+- [Configuration](./docs/configuration.md)
+- [Development](./docs/development.md)
+- [Architecture](./docs/architecture.md)
+- [Roadmap](./docs/roadmap.md)
 
-## Roadmap / Release Planning
+## Commands
 
-If you are interested in the direction of the project, we maintain a
-[Roadmap](https://github.com/orgs/headlamp-k8s/projects/1/views/1). It has the
-biggest changes planned so far, as well as a [board](https://github.com/orgs/headlamp-k8s/projects/1/) tracking each release.
+```bash
+just --list          # Show all commands
+just build           # Build backend and frontend
+just dev             # Run in development mode
+just test            # Run all tests
+just build-embed     # Build single binary with embedded frontend
+```
+
+## Project Structure
+
+```
+├── backend/         # Go backend server
+├── frontend/        # React frontend
+├── docs/            # Documentation
+└── justfile         # Build commands
+```
+
+## Contributing
+
+Contributions are welcome! See the [development guide](./docs/development.md) and [roadmap](./docs/roadmap.md).
 
 ## License
 
-Headlamp is released under the terms of the [Apache 2.0](./LICENSE) license.
+Apache License 2.0 - see [LICENSE](./LICENSE) for details.
 
-## Frequently Asked Questions
+## Acknowledgments
 
-For more information about Headlamp, see the [Headlamp FAQ](https://headlamp.dev/docs/latest/faq/).
+Caravan is built on the foundation of [Headlamp](https://github.com/headlamp-k8s/headlamp), an excellent Kubernetes dashboard created by [Kinvolk](https://kinvolk.io/) (now part of Microsoft). We thank the Headlamp team and contributors for their work.

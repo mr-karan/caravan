@@ -1,19 +1,3 @@
-/*
-Copyright 2025 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package plugins
 
 import (
@@ -30,8 +14,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/caravan-nomad/caravan/backend/pkg/cache"
+	"github.com/caravan-nomad/caravan/backend/pkg/logger"
 )
 
 const (
@@ -152,7 +136,7 @@ func generateSeparatePluginPaths(
 // Returns all plugins with their type (development, user, or shipped).
 // The frontend is responsible for implementing priority-based loading and handling duplicates.
 //
-// Migration: Plugins in the development directory that have isManagedByHeadlampPlugin=true
+// Migration: Plugins in the development directory that have isManagedByCaravanPlugin=true
 // in their package.json are treated as "user" plugins instead, as they were installed via
 // the catalog before the user-plugins directory was introduced.
 func GeneratePluginPaths(
@@ -189,7 +173,7 @@ func GeneratePluginPaths(
 
 	// Add development plugins (highest priority)
 	// However, if a plugin in the development directory was installed via the catalog
-	// (has isManagedByHeadlampPlugin=true), treat it as a user plugin instead.
+	// (has isManagedByCaravanPlugin=true), treat it as a user plugin instead.
 	// This handles migration from older versions where catalog plugins were installed to plugins/ directory.
 	for _, pluginURL := range pluginListURLDev {
 		pluginName := filepath.Base(pluginURL)
@@ -216,7 +200,7 @@ func GeneratePluginPaths(
 }
 
 // isCatalogInstalledPlugin checks if a plugin was installed via the catalog.
-// Catalog-installed plugins have isManagedByHeadlampPlugin: true in their package.json.
+// Catalog-installed plugins have isManagedByCaravanPlugin: true in their package.json.
 func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
 	packageJSONPath := filepath.Join(pluginDir, pluginName, "package.json")
 
@@ -226,14 +210,14 @@ func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
 	}
 
 	var packageData struct {
-		IsManagedByHeadlampPlugin bool `json:"isManagedByHeadlampPlugin"`
+		IsManagedByCaravanPlugin bool `json:"isManagedByCaravanPlugin"`
 	}
 
 	if err := json.Unmarshal(content, &packageData); err != nil {
 		return false
 	}
 
-	return packageData.IsManagedByHeadlampPlugin
+	return packageData.IsManagedByCaravanPlugin
 }
 
 // ListPlugins lists the plugins in the static, user-installed, and development plugin directories.
@@ -342,7 +326,7 @@ func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error
 			if !os.IsNotExist(err) {
 				logger.Log(logger.LevelInfo, map[string]string{"packageJSONPath": packageJSONPath},
 					err, `Not including plugin path, package.json not found.
-				Please run 'headlamp-plugin extract' again with headlamp-plugin >= 0.6.0`)
+				Please run 'caravan-plugin extract' again with caravan-plugin >= 0.6.0`)
 			}
 		}
 

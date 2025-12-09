@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -26,13 +10,12 @@ import { SelectChangeEvent } from '@mui/material/Select';
 import Select from '@mui/material/Select';
 import TextField from '@mui/material/TextField';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { defaultTableRowsPerPageOptions, setAppSettings } from '../../../redux/configSlice';
 
 export default function NumRowsInput(props: { defaultValue: number[]; nameLabelID?: string }) {
-  const { t } = useTranslation(['frequent']);
+  
   const { defaultValue, nameLabelID } = props;
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [options, setOptions] = useState(defaultValue);
@@ -73,7 +56,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
   }, [selectedValue]);
 
   const handleChange = (event: SelectChangeEvent<number>) => {
-    const val = parseInt(event.target.value as string);
+    const val = typeof event.target.value === 'string' ? parseInt(event.target.value) : event.target.value;
     setSelectedValue(val);
   };
 
@@ -85,10 +68,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
     setIsSelectOpen(true);
   };
 
-  const suggestionMsg = t('translation|Enter a value between {{ minRows }} and {{ maxRows }}.', {
-    minRows,
-    maxRows,
-  });
+  const suggestionMsg = `Enter a value between ${minRows} and ${maxRows}.`;
 
   return (
     // we have assigned value -1 to select custom option
@@ -98,7 +78,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
           type={'number'}
           value={customValue}
           error={!!errorMessage}
-          placeholder={t('translation|Custom row value')}
+          placeholder="Custom row value"
           helperText={errorMessage || suggestionMsg}
           inputProps={{ min: minRows, max: maxRows }}
           inputRef={focusedRef}
@@ -131,10 +111,10 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
               setSelectedValue(customValue);
             }}
           >
-            {t('translation|Apply')}
+            Apply
           </Button>
           <IconButton
-            aria-label={t('translation|Delete')}
+            aria-label="Delete"
             onClick={() => {
               setOptions(defaultTableRowsPerPageOptions);
               setSelectedValue(defaultTableRowsPerPageOptions[0]);
@@ -168,7 +148,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
                   <ListItemSecondaryAction>
                     <IconButton
                       size="small"
-                      aria-label={t('translation|Delete')}
+                      aria-label="Delete"
                       onClick={() => {
                         setOptions(defaultTableRowsPerPageOptions);
                         setSelectedValue(defaultTableRowsPerPageOptions[0]);
@@ -182,8 +162,8 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
               </MenuItem>
             );
           })}
-          <MenuItem key={'custom'} value={-1}>
-            {t('translation|Custom value')}
+          <MenuItem key="custom" value={-1}>
+            Custom value
           </MenuItem>
         </Select>
       </FormControl>

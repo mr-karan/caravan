@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/caravan-nomad/caravan/backend/pkg/logger"
 )
 
 type spaHandler struct {
@@ -73,4 +73,9 @@ func NewHandler(staticPath, indexPath, baseURL string) *spaHandler {
 		indexPath:  indexPath,
 		baseURL:    baseURL,
 	}
+}
+
+// GetHandler returns the SPA handler that can be registered with a router
+func GetHandler(baseURL, staticDir string) http.Handler {
+	return NewHandler(staticDir, "index.html", baseURL)
 }

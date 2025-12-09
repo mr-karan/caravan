@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import Box, { BoxProps } from '@mui/material/Box';
 import React from 'react';
 import BackLink, { BackLinkProps } from './BackLink';
@@ -43,12 +27,12 @@ export function SectionBox(props: SectionBoxProps) {
   // If backLink is a boolean, then we want to use the browser's history if true.
   const actualBackLink = typeof backLink === 'boolean' ? (!!backLink ? '' : undefined) : backLink;
 
-  if (typeof title === 'string') {
+  // Always use SectionHeader to ensure actions are rendered properly
+  // This handles both string and React element titles
+  if (title !== undefined) {
     titleElem = (
-      <SectionHeader title={title as string} subtitle={subtitle as string} {...headerProps} />
+      <SectionHeader title={title} subtitle={subtitle as string} {...headerProps} />
     );
-  } else {
-    titleElem = title;
   }
 
   return (

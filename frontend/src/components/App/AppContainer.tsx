@@ -1,43 +1,12 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import GlobalStyles from '@mui/material/GlobalStyles';
 import { SnackbarProvider } from 'notistack';
 import React, { useEffect } from 'react';
-import { BrowserRouter, HashRouter, useHistory, useLocation } from 'react-router-dom';
+import { BrowserRouter, useNavigate, useLocation } from 'react-router-dom';
 import { getBaseUrl } from '../../helpers/getBaseUrl';
-import { setBackendToken } from '../../helpers/getHeadlampAPIHeaders';
-import { isElectron } from '../../helpers/isElectron';
-import Plugins from '../../plugin/Plugins';
-import store from '../../redux/stores/store';
-import { uiSlice } from '../../redux/uiSlice';
+import { NamespaceProvider } from '../../lib/nomad/namespaceContext';
 import ReleaseNotes from '../common/ReleaseNotes/ReleaseNotes';
-import { MonacoEditorLoaderInitializer } from '../monaco/MonacoEditorLoaderInitializer';
 import Layout from './Layout';
 import { PreviousRouteProvider } from './RouteSwitcher';
-
-window.desktopApi?.send('request-backend-token');
-window.desktopApi?.receive('backend-token', (token: string) => {
-  setBackendToken(token);
-});
-
-// Listen for the open-about-dialog event from the Electron app menu
-window.desktopApi?.receive('open-about-dialog', () => {
-  store.dispatch(uiSlice.actions.setVersionDialogOpen(true));
-});
 
 /**
  * Validates if a redirect path is safe to use
@@ -79,7 +48,7 @@ export const isValidRedirectPath = (redirectPath: string): boolean => {
  * @returns null - This component doesn't render anything visible
  */
 const QueryParamRedirect = () => {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
@@ -105,20 +74,13 @@ const QueryParamRedirect = () => {
       const newPathWithSearch = redirectPath + (newSearch ? `?${newSearch}` : '');
 
       // Perform the redirect
-      history.replace(newPathWithSearch);
+      navigate(newPathWithSearch, { replace: true });
     }
-  }, [location.search, history]);
+  }, [location.search, navigate]);
 
   return null;
 };
 export default function AppContainer() {
-  const Router = ({ children }: React.PropsWithChildren<{}>) =>
-    isElectron() ? (
-      <HashRouter>{children}</HashRouter>
-    ) : (
-      <BrowserRouter basename={getBaseUrl()}>{children}</BrowserRouter>
-    );
-
   return (
     <SnackbarProvider
       anchorOrigin={{
@@ -140,15 +102,14 @@ export default function AppContainer() {
           },
         }}
       />
-      <Router>
+      <BrowserRouter basename={getBaseUrl()}>
         <PreviousRouteProvider>
-          <MonacoEditorLoaderInitializer>
-            <Plugins />
+          <NamespaceProvider>
             <Layout />
-          </MonacoEditorLoaderInitializer>
-          <QueryParamRedirect />
+            <QueryParamRedirect />
+          </NamespaceProvider>
         </PreviousRouteProvider>
-      </Router>
+      </BrowserRouter>
       <ReleaseNotes />
     </SnackbarProvider>
   );

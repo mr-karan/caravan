@@ -1,184 +1,1209 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { Icon } from '@iconify/react';
-import { Box, Tab, Tabs, Typography } from '@mui/material';
-import { isEqual } from 'lodash';
-import React from 'react';
-import { useTranslation } from 'react-i18next';
-import { useHistory } from 'react-router-dom';
-import { setupBackstageMessageReceiver } from '../../../helpers/backstageMessageReceiver';
-import { isBackstage } from '../../../helpers/isBackstage';
-import { isElectron } from '../../../helpers/isElectron';
-import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
-import { Cluster } from '../../../lib/k8s/cluster';
-import Event from '../../../lib/k8s/event';
+import {
+  Alert,
+  alpha,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Grid,
+  IconButton,
+  InputAdornment,
+  LinearProgress,
+  Paper,
+  Skeleton,
+  Step,
+  StepLabel,
+  Stepper,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography,
+  useTheme,
+} from '@mui/material';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { hasClusterToken, removeCluster as removeStoredCluster, saveCluster } from '../../../lib/clusterStorage';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
-import { PageGrid } from '../../common/Resource';
-import SectionBox from '../../common/SectionBox';
-import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
-import ProjectList from '../../project/ProjectList';
-import ClusterTable from './ClusterTable';
-import { ENABLE_RECENT_CLUSTERS } from './config';
-import { getCustomClusterNames } from './customClusterNames';
-import RecentClusters from './RecentClusters';
+import { setConfig } from '../../../redux/configSlice';
+import { useTypedSelector } from '../../../redux/hooks';
+import ClusterAvatar from '../../common/ClusterAvatar';
+import ClusterErrorPage from '../ClusterErrorPage';
 
-export default function Home() {
-  const history = useHistory();
-  const clusters = useClustersConf();
+interface LocationState {
+  clusterError?: {
+    cluster: string;
+    errorType: 'not_found' | 'auth_failed' | 'connection_failed' | 'unknown';
+    message?: string;
+  };
+}
 
-  if (!isElectron() && clusters && Object.keys(clusters).length === 1) {
-    history.push(createRouteURL('cluster', { cluster: Object.keys(clusters)[0] }));
-    return null;
+interface AddClusterFormData {
+  name: string;
+  address: string;
+  region: string;
+  namespace: string;
+  token: string;
+}
+
+interface ClusterHealth {
+  connected: boolean;
+  error?: string;
+  errorType?: 'auth' | 'connection' | 'unknown';
+  nodes: { total: number; ready: number; down: number };
+  jobs: { total: number; running: number; pending: number; dead: number };
+  allocations: { total: number; running: number; pending: number; failed: number };
+}
+
+// Fetch health for a single cluster
+async function fetchClusterHealth(clusterName: string): Promise<ClusterHealth> {
+  try {
+    const [nodesRes, jobsRes, allocsRes] = await Promise.all([
+      fetch(`/api/clusters/${encodeURIComponent(clusterName)}/v1/nodes`),
+      fetch(`/api/clusters/${encodeURIComponent(clusterName)}/v1/jobs`),
+      fetch(`/api/clusters/${encodeURIComponent(clusterName)}/v1/allocations`),
+    ]);
+
+    for (const res of [nodesRes, jobsRes, allocsRes]) {
+      if (res.status === 401 || res.status === 403) {
+        return {
+          connected: false,
+          error: 'Token expired or invalid',
+          errorType: 'auth',
+          nodes: { total: 0, ready: 0, down: 0 },
+          jobs: { total: 0, running: 0, pending: 0, dead: 0 },
+          allocations: { total: 0, running: 0, pending: 0, failed: 0 },
+        };
+      }
+      if (res.status === 500) {
+        return {
+          connected: false,
+          error: 'Cluster not responding',
+          errorType: 'connection',
+          nodes: { total: 0, ready: 0, down: 0 },
+          jobs: { total: 0, running: 0, pending: 0, dead: 0 },
+          allocations: { total: 0, running: 0, pending: 0, failed: 0 },
+        };
+      }
+    }
+
+    if (!nodesRes.ok || !jobsRes.ok || !allocsRes.ok) {
+      throw new Error('Failed to fetch cluster data');
+    }
+
+    const [nodes, jobs, allocs] = await Promise.all([
+      nodesRes.json(),
+      jobsRes.json(),
+      allocsRes.json(),
+    ]);
+
+    return {
+      connected: true,
+      nodes: {
+        total: nodes?.length || 0,
+        ready: nodes?.filter((n: any) => n.Status === 'ready').length || 0,
+        down: nodes?.filter((n: any) => n.Status === 'down').length || 0,
+      },
+      jobs: {
+        total: jobs?.length || 0,
+        running: jobs?.filter((j: any) => j.Status === 'running').length || 0,
+        pending: jobs?.filter((j: any) => j.Status === 'pending').length || 0,
+        dead: jobs?.filter((j: any) => j.Status === 'dead').length || 0,
+      },
+      allocations: {
+        total: allocs?.length || 0,
+        running: allocs?.filter((a: any) => a.ClientStatus === 'running').length || 0,
+        pending: allocs?.filter((a: any) => a.ClientStatus === 'pending').length || 0,
+        failed: allocs?.filter((a: any) => a.ClientStatus === 'failed').length || 0,
+      },
+    };
+  } catch (error) {
+    return {
+      connected: false,
+      error: (error as Error).message,
+      errorType: 'unknown',
+      nodes: { total: 0, ready: 0, down: 0 },
+      jobs: { total: 0, running: 0, pending: 0, dead: 0 },
+      allocations: { total: 0, running: 0, pending: 0, failed: 0 },
+    };
   }
+}
+
+// Improved Add Cluster Dialog with stepper
+function AddClusterDialog({
+  open,
+  onClose,
+  onAdd,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAdd: (data: AddClusterFormData) => Promise<void>;
+}) {
+  const theme = useTheme();
+  const [activeStep, setActiveStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<AddClusterFormData>({
+    name: '',
+    address: '',
+    region: '',
+    namespace: '',
+    token: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+
+  const steps = ['Connection', 'Authentication', 'Confirm'];
+
+  const handleNext = async () => {
+    setError(null);
+
+    if (activeStep === 0) {
+      // Validate connection details
+      if (!formData.name.trim()) {
+        setError('Cluster name is required');
+        return;
+      }
+      if (!formData.address.trim()) {
+        setError('Nomad address is required');
+        return;
+      }
+      try {
+        new URL(formData.address);
+      } catch {
+        setError('Invalid address format. Use a valid URL (e.g., https://nomad.example.com)');
+        return;
+      }
+      setActiveStep(1);
+    } else if (activeStep === 1) {
+      // Test connection and validate token
+      setLoading(true);
+      try {
+        // First add the cluster (without token - we'll validate token separately via login)
+        const addClusterData = {
+          name: formData.name,
+          address: formData.address,
+          region: formData.region,
+          namespace: formData.namespace,
+        };
+        const testResponse = await fetch('/api/cluster', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(addClusterData),
+        });
+
+        if (!testResponse.ok) {
+          throw new Error('Failed to add cluster');
+        }
+
+        // If token provided, validate it via login endpoint
+        if (formData.token.trim()) {
+          const loginResponse = await fetch(
+            `/api/clusters/${encodeURIComponent(formData.name)}/v1/auth/login`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: formData.token.trim() }),
+              credentials: 'include',
+            }
+          );
+
+          if (!loginResponse.ok) {
+            const errorData = await loginResponse.json().catch(() => ({}));
+            const errorMessage = errorData.error || 'Invalid token';
+            setTestResult('error');
+            setError(`Token validation failed: ${errorMessage}`);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Try to fetch nodes to test connection (will use cookie if token was set)
+        const healthResponse = await fetch(
+          `/api/clusters/${encodeURIComponent(formData.name)}/v1/nodes`,
+          { credentials: 'include' }
+        );
+
+        if (healthResponse.ok) {
+          setTestResult('success');
+          setActiveStep(2);
+        } else if (healthResponse.status === 401 || healthResponse.status === 403) {
+          setTestResult('error');
+          setError('Authentication required. Please provide a valid ACL token.');
+        } else {
+          setTestResult('error');
+          const errorData = await healthResponse.json().catch(() => ({}));
+          setError(errorData.error || 'Could not connect to cluster. Please verify the address.');
+        }
+      } catch (err) {
+        setTestResult('error');
+        setError((err as Error).message);
+      }
+      setLoading(false);
+    } else {
+      // Final step - submit
+      setLoading(true);
+      try {
+        await onAdd(formData);
+        handleClose();
+      } catch (err) {
+        setError((err as Error).message);
+      }
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    setActiveStep(prev => prev - 1);
+    setError(null);
+    setTestResult(null);
+  };
+
+  const handleClose = () => {
+    setFormData({ name: '', address: '', region: '', namespace: '', token: '' });
+    setError(null);
+    setActiveStep(0);
+    setTestResult(null);
+    onClose();
+  };
 
   return (
-    <HomeComponent
-      clusters={clusters}
-      key={'home-component-' + Object.keys(clusters || {}).join('')}
-    />
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Icon icon="mdi:server-plus" width={24} />
+          Add Nomad Cluster
+        </Box>
+      </DialogTitle>
+
+      <DialogContent>
+        <Stepper activeStep={activeStep} sx={{ pt: 2, pb: 4 }}>
+          {steps.map(label => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        {activeStep === 0 && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <TextField
+              label="Cluster Name"
+              value={formData.name}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              placeholder="production-us-west"
+              fullWidth
+              required
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Icon icon="mdi:label-outline" width={20} />
+                  </InputAdornment>
+                ),
+              }}
+              helperText="A unique, friendly name to identify this cluster"
+            />
+            <TextField
+              label="Nomad Address"
+              value={formData.address}
+              onChange={e => setFormData({ ...formData, address: e.target.value })}
+              placeholder="https://nomad.example.com:4646"
+              fullWidth
+              required
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Icon icon="mdi:link" width={20} />
+                  </InputAdornment>
+                ),
+              }}
+              helperText="The HTTP(S) address of the Nomad server"
+            />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Region"
+                value={formData.region}
+                onChange={e => setFormData({ ...formData, region: e.target.value })}
+                placeholder="global"
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Icon icon="mdi:map-marker" width={20} />
+                    </InputAdornment>
+                  ),
+                }}
+                helperText="Optional"
+              />
+              <TextField
+                label="Namespace"
+                value={formData.namespace}
+                onChange={e => setFormData({ ...formData, namespace: e.target.value })}
+                placeholder="default"
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Icon icon="mdi:folder-outline" width={20} />
+                    </InputAdornment>
+                  ),
+                }}
+                helperText="Optional"
+              />
+            </Box>
+          </Box>
+        )}
+
+        {activeStep === 1 && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 2,
+                bgcolor: alpha(theme.palette.info.main, 0.05),
+                borderColor: theme.palette.info.main,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Icon icon="mdi:information" width={20} color={theme.palette.info.main} />
+                <Typography variant="subtitle2" color="info.main">
+                  Authentication
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                If your Nomad cluster has ACL enabled, provide a token with appropriate permissions.
+                Leave empty if ACL is disabled.
+              </Typography>
+            </Paper>
+
+            <TextField
+              label="ACL Token"
+              value={formData.token}
+              onChange={e => setFormData({ ...formData, token: e.target.value })}
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              fullWidth
+              type="password"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Icon icon="mdi:key" width={20} />
+                  </InputAdornment>
+                ),
+              }}
+              helperText="Your Nomad ACL token (optional if ACL is disabled)"
+            />
+
+            {testResult === 'success' && (
+              <Alert severity="success" icon={<Icon icon="mdi:check-circle" />}>
+                Successfully connected to cluster!
+              </Alert>
+            )}
+          </Box>
+        )}
+
+        {activeStep === 2 && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Alert severity="success" icon={<Icon icon="mdi:check-circle" />}>
+              Connection verified! Ready to add cluster.
+            </Alert>
+
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Cluster Summary
+              </Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 1, mt: 1 }}>
+                <Typography variant="body2" color="text.secondary">Name:</Typography>
+                <Typography variant="body2" fontWeight={600}>{formData.name}</Typography>
+                <Typography variant="body2" color="text.secondary">Address:</Typography>
+                <Typography variant="body2" fontFamily="monospace">{formData.address}</Typography>
+                {formData.region && (
+                  <>
+                    <Typography variant="body2" color="text.secondary">Region:</Typography>
+                    <Typography variant="body2">{formData.region}</Typography>
+                  </>
+                )}
+                <Typography variant="body2" color="text.secondary">Auth:</Typography>
+                <Typography variant="body2">
+                  {formData.token ? 'ACL Token configured' : 'No authentication'}
+                </Typography>
+              </Box>
+            </Paper>
+          </Box>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={handleClose} disabled={loading}>
+          Cancel
+        </Button>
+        <Box sx={{ flex: 1 }} />
+        {activeStep > 0 && (
+          <Button onClick={handleBack} disabled={loading}>
+            Back
+          </Button>
+        )}
+        <Button
+          onClick={handleNext}
+          variant="contained"
+          disabled={loading}
+          startIcon={loading ? undefined : activeStep === 2 ? <Icon icon="mdi:check" /> : <Icon icon="mdi:arrow-right" />}
+        >
+          {loading ? 'Please wait...' : activeStep === 2 ? 'Add Cluster' : 'Next'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
-interface HomeComponentProps {
-  clusters: { [name: string]: Cluster } | null;
+// Delete confirmation dialog
+function DeleteClusterDialog({
+  open,
+  clusterName,
+  onClose,
+  onDelete,
+}: {
+  open: boolean;
+  clusterName: string;
+  onClose: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Icon icon="mdi:alert-circle" color="error" width={24} />
+        Remove Cluster
+      </DialogTitle>
+      <DialogContent>
+        <Typography>
+          Remove <strong>{clusterName}</strong> from the dashboard?
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          This only removes it from the UI. The actual Nomad cluster is not affected.
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onDelete} color="error" variant="contained">
+          Remove
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
 }
 
-function useWarningSettingsPerCluster(clusterNames: string[]) {
-  const warningsMap = Event.useWarningList(clusterNames);
-  const [warningLabels, setWarningLabels] = React.useState<{ [cluster: string]: string }>({});
-  const maxWarnings = 50;
+// Stat card for aggregate dashboard
+function StatCard({
+  title,
+  icon,
+  total,
+  breakdown,
+  loading,
+  color,
+}: {
+  title: string;
+  icon: string;
+  total: number;
+  breakdown: { label: string; value: number; color: string }[];
+  loading?: boolean;
+  color?: string;
+}) {
+  const theme = useTheme();
 
-  function renderWarningsText(warnings: typeof warningsMap, clusterName: string) {
-    const numWarnings =
-      (!!warnings[clusterName]?.error && -1) || (warnings[clusterName]?.warnings?.length ?? -1);
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        height: '100%',
+        borderTop: `3px solid ${color || theme.palette.primary.main}`,
+      }}
+    >
+      <CardContent sx={{ p: 2.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+          <Box
+            sx={{
+              p: 0.75,
+              borderRadius: 1,
+              bgcolor: alpha(color || theme.palette.primary.main, 0.1),
+              display: 'flex',
+            }}
+          >
+            <Icon icon={icon} width={20} color={color || theme.palette.primary.main} />
+          </Box>
+          <Typography variant="body2" color="text.secondary" fontWeight={500}>
+            {title}
+          </Typography>
+        </Box>
 
-    if (numWarnings === -1) {
-      return '⋯';
+        {loading ? (
+          <Skeleton variant="text" width={60} height={40} />
+        ) : (
+          <Typography variant="h4" sx={{ fontWeight: 700, mb: 1.5 }}>
+            {total.toLocaleString()}
+          </Typography>
+        )}
+
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {breakdown.filter(b => b.value > 0).map(item => (
+            <Box key={item.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box
+                sx={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  backgroundColor: item.color,
+                }}
+              />
+              <Typography variant="caption" color="text.secondary">
+                {loading ? <Skeleton width={30} /> : `${item.value} ${item.label}`}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Enhanced cluster card
+function ClusterCard({
+  name,
+  server,
+  health,
+  loading,
+  onDelete,
+}: {
+  name: string;
+  server: string;
+  health: ClusterHealth | null;
+  loading: boolean;
+  onDelete: (name: string) => void;
+}) {
+  const theme = useTheme();
+  const navigate = useNavigate();
+  const [showActions, setShowActions] = useState(false);
+
+  const getHealthStatus = () => {
+    if (!health?.connected) return 'error';
+    if (health.nodes.down > 0 || health.allocations.failed > 0) return 'warning';
+    return 'success';
+  };
+
+  const healthStatus = getHealthStatus();
+  const healthColors = {
+    success: theme.palette.success.main,
+    warning: theme.palette.warning.main,
+    error: theme.palette.error.main,
+  };
+
+  const handleClick = () => {
+    if (hasClusterToken(name)) {
+      navigate(createRouteURL('nomadCluster', { cluster: name }));
+    } else {
+      navigate(createRouteURL('login', { cluster: name }));
     }
-    if (numWarnings >= maxWarnings) {
-      return `${maxWarnings}+`;
-    }
-    return numWarnings.toString();
-  }
+  };
 
-  React.useEffect(() => {
-    setWarningLabels(currentWarningLabels => {
-      const newWarningLabels: { [cluster: string]: string } = {};
-      for (const cluster of clusterNames) {
-        newWarningLabels[cluster] = renderWarningsText(warningsMap, cluster);
-      }
-      if (!isEqual(newWarningLabels, currentWarningLabels)) {
-        return newWarningLabels;
-      }
-      return currentWarningLabels;
-    });
-  }, [warningsMap]);
+  const isLocal = server?.includes('localhost') || server?.includes('127.0.0.1');
 
-  return warningLabels;
+  return (
+    <Card
+      sx={{
+        height: '100%',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        borderLeft: `4px solid ${health ? healthColors[healthStatus] : theme.palette.divider}`,
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: theme.shadows[4],
+        },
+      }}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+      onClick={handleClick}
+    >
+      <CardContent sx={{ p: 2.5, height: '100%', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+          <Box sx={{ position: 'relative' }}>
+            <ClusterAvatar name={name} size={44} />
+            {health && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: -2,
+                  right: -2,
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  backgroundColor: healthColors[healthStatus],
+                  border: `2px solid ${theme.palette.background.paper}`,
+                }}
+              />
+            )}
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {name}
+              </Typography>
+              {isLocal && (
+                <Chip size="small" label="Local" sx={{ height: 18, fontSize: '0.65rem' }} />
+              )}
+            </Box>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontFamily: 'monospace', display: 'block' }}
+            >
+              {server ? new URL(server).host : 'Unknown'}
+            </Typography>
+          </Box>
+          {showActions && (
+            <IconButton
+              size="small"
+              onClick={e => {
+                e.stopPropagation();
+                onDelete(name);
+              }}
+              sx={{
+                opacity: 0.7,
+                '&:hover': { opacity: 1, color: 'error.main' },
+              }}
+            >
+              <Icon icon="mdi:delete-outline" width={18} />
+            </IconButton>
+          )}
+        </Box>
+
+        {/* Stats */}
+        <Box sx={{ flex: 1 }}>
+          {loading ? (
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Skeleton width={60} height={24} />
+              <Skeleton width={60} height={24} />
+              <Skeleton width={60} height={24} />
+            </Box>
+          ) : health?.connected ? (
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+              <Tooltip title={`${health.nodes.ready} ready / ${health.nodes.total} total nodes`}>
+                <Chip
+                  size="small"
+                  icon={<Icon icon="mdi:server" width={14} />}
+                  label={`${health.nodes.ready}/${health.nodes.total}`}
+                  variant="outlined"
+                  color={health.nodes.down > 0 ? 'warning' : 'default'}
+                />
+              </Tooltip>
+              <Tooltip title={`${health.jobs.running} running jobs`}>
+                <Chip
+                  size="small"
+                  icon={<Icon icon="mdi:briefcase-outline" width={14} />}
+                  label={health.jobs.running}
+                  variant="outlined"
+                  color={health.jobs.running > 0 ? 'success' : 'default'}
+                />
+              </Tooltip>
+              <Tooltip title={`${health.allocations.running} running allocations`}>
+                <Chip
+                  size="small"
+                  icon={<Icon icon="mdi:cube-outline" width={14} />}
+                  label={health.allocations.running}
+                  variant="outlined"
+                  color={health.allocations.running > 0 ? 'primary' : 'default'}
+                />
+              </Tooltip>
+              {health.allocations.failed > 0 && (
+                <Tooltip title={`${health.allocations.failed} failed allocations`}>
+                  <Chip
+                    size="small"
+                    icon={<Icon icon="mdi:alert" width={14} />}
+                    label={health.allocations.failed}
+                    color="error"
+                  />
+                </Tooltip>
+              )}
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Icon
+                icon={health?.errorType === 'auth' ? 'mdi:key-alert' : 'mdi:cloud-off-outline'}
+                width={18}
+                color={health?.errorType === 'auth' ? theme.palette.warning.main : theme.palette.error.main}
+              />
+              <Typography variant="body2" color={health?.errorType === 'auth' ? 'warning.main' : 'error.main'}>
+                {health?.errorType === 'auth' ? 'Re-authenticate required' : 'Connection failed'}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  );
 }
 
-function HomeComponent(props: HomeComponentProps) {
-  const [view, setView] = useLocalStorageState<'clusters' | 'projects'>(
-    'home-tab-view',
-    'clusters'
-  );
-  const { clusters } = props;
-  const [customNameClusters, setCustomNameClusters] = React.useState(
-    getCustomClusterNames(clusters)
-  );
-  const { t } = useTranslation(['translation', 'glossary']);
-  const [versions, errors] = useClustersVersion(Object.values(clusters || {}));
-  const warningLabels = useWarningSettingsPerCluster(
-    Object.values(customNameClusters).map(c => c.name)
-  );
+// Empty state component
+function EmptyState({ onAddCluster }: { onAddCluster: () => void }) {
+  const theme = useTheme();
 
-  React.useEffect(() => {
-    if (isBackstage()) {
-      window.parent.postMessage({ type: 'HEADLAMP_READY' }, '*');
-      setupBackstageMessageReceiver();
+  return (
+    <Box
+      sx={{
+        textAlign: 'center',
+        py: 8,
+        px: 4,
+        maxWidth: 500,
+        mx: 'auto',
+      }}
+    >
+      <Box
+        sx={{
+          width: 80,
+          height: 80,
+          borderRadius: '50%',
+          bgcolor: alpha(theme.palette.primary.main, 0.1),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          mx: 'auto',
+          mb: 3,
+        }}
+      >
+        <Icon icon="mdi:server-network" width={40} color={theme.palette.primary.main} />
+      </Box>
+
+      <Typography variant="h5" fontWeight={600} gutterBottom>
+        Welcome to Nomad Dashboard
+      </Typography>
+      <Typography color="text.secondary" sx={{ mb: 4 }}>
+        Connect your first Nomad cluster to start monitoring and managing your workloads.
+      </Typography>
+
+      <Button
+        variant="contained"
+        size="large"
+        startIcon={<Icon icon="mdi:plus" />}
+        onClick={onAddCluster}
+        sx={{ px: 4 }}
+      >
+        Add Cluster
+      </Button>
+
+      <Divider sx={{ my: 4 }}>
+        <Typography variant="caption" color="text.secondary">
+          OR
+        </Typography>
+      </Divider>
+
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 2,
+          bgcolor: alpha(theme.palette.info.main, 0.02),
+          borderColor: alpha(theme.palette.info.main, 0.2),
+        }}
+      >
+        <Typography variant="body2" color="text.secondary" gutterBottom>
+          Set environment variable:
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{
+            fontFamily: 'monospace',
+            bgcolor: 'action.hover',
+            px: 1.5,
+            py: 0.75,
+            borderRadius: 1,
+            display: 'inline-block',
+          }}
+        >
+          NOMAD_ADDR=https://nomad.example.com
+        </Typography>
+      </Paper>
+    </Box>
+  );
+}
+
+export default function Home() {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state as LocationState | null;
+  const theme = useTheme();
+  const clusters = useTypedSelector(state => state.config.clusters) || {};
+
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [clusterToDelete, setClusterToDelete] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [clusterHealth, setClusterHealth] = useState<Record<string, ClusterHealth>>({});
+  const [loading, setLoading] = useState(true);
+
+  const [clusterError, setClusterError] = useState(location.state?.clusterError);
+
+  const clusterList = useMemo(() => {
+    return Object.entries(clusters)
+      .map(([name, cluster]) => ({ name, server: cluster?.server || '' }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [clusters]);
+
+  const filteredClusters = useMemo(() => {
+    if (!searchQuery) return clusterList;
+    const query = searchQuery.toLowerCase();
+    return clusterList.filter(
+      c => c.name.toLowerCase().includes(query) || c.server.toLowerCase().includes(query)
+    );
+  }, [clusterList, searchQuery]);
+
+  const clusterCount = clusterList.length;
+
+  // Clear location state after reading
+  useEffect(() => {
+    if (state?.clusterError) {
+      navigate('/clusters', { replace: true, state: undefined });
     }
   }, []);
 
-  React.useEffect(() => {
-    setCustomNameClusters(currentNames => {
-      if (isEqual(currentNames, getCustomClusterNames(clusters))) {
-        return currentNames;
-      }
-      return getCustomClusterNames(clusters);
-    });
-  }, [customNameClusters]);
+  // Fetch health for all clusters
+  useEffect(() => {
+    let mounted = true;
 
-  const memoizedComponent = React.useMemo(
-    () => (
-      <>
-        {ENABLE_RECENT_CLUSTERS && (
-          <RecentClusters clusters={Object.values(customNameClusters)} onButtonClick={() => {}} />
-        )}
-        <ClusterTable
-          customNameClusters={customNameClusters}
-          versions={versions}
-          errors={errors}
-          warningLabels={warningLabels}
-          clusters={clusters}
-        />
-      </>
-    ),
-    [customNameClusters, errors, versions, warningLabels]
-  );
+    const loadHealth = async () => {
+      setLoading(true);
+      const healthPromises = clusterList.map(async c => {
+        const health = await fetchClusterHealth(c.name);
+        return { name: c.name, health };
+      });
+
+      const results = await Promise.all(healthPromises);
+
+      if (mounted) {
+        const healthMap: Record<string, ClusterHealth> = {};
+        results.forEach(r => {
+          healthMap[r.name] = r.health;
+        });
+        setClusterHealth(healthMap);
+        setLoading(false);
+      }
+    };
+
+    if (clusterCount > 0) {
+      loadHealth();
+      const interval = setInterval(loadHealth, 30000);
+      return () => {
+        mounted = false;
+        clearInterval(interval);
+      };
+    } else {
+      setLoading(false);
+    }
+  }, [clusterList.map(c => c.name).join(',')]);
+
+  // Calculate aggregate stats
+  const aggregate = useMemo(() => {
+    const stats = {
+      clusters: { total: clusterCount, connected: 0, disconnected: 0 },
+      nodes: { total: 0, ready: 0, down: 0 },
+      jobs: { total: 0, running: 0, pending: 0, dead: 0 },
+      allocations: { total: 0, running: 0, pending: 0, failed: 0 },
+    };
+
+    Object.values(clusterHealth).forEach(h => {
+      if (h.connected) {
+        stats.clusters.connected++;
+        stats.nodes.total += h.nodes.total;
+        stats.nodes.ready += h.nodes.ready;
+        stats.nodes.down += h.nodes.down;
+        stats.jobs.total += h.jobs.total;
+        stats.jobs.running += h.jobs.running;
+        stats.jobs.pending += h.jobs.pending;
+        stats.jobs.dead += h.jobs.dead;
+        stats.allocations.total += h.allocations.total;
+        stats.allocations.running += h.allocations.running;
+        stats.allocations.pending += h.allocations.pending;
+        stats.allocations.failed += h.allocations.failed;
+      } else {
+        stats.clusters.disconnected++;
+      }
+    });
+
+    return stats;
+  }, [clusterHealth, clusterCount]);
+
+  if (clusterError) {
+    return (
+      <ClusterErrorPage
+        clusterName={clusterError.cluster}
+        errorType={clusterError.errorType}
+        errorMessage={clusterError.message}
+        onResolved={() => setClusterError(undefined)}
+      />
+    );
+  }
+
+  const handleAddCluster = async (data: AddClusterFormData) => {
+    // Already added during test, just save to localStorage
+    saveCluster({
+      name: data.name,
+      address: data.address,
+      region: data.region || undefined,
+      namespace: data.namespace || undefined,
+      token: data.token || undefined,
+    });
+
+    // Refresh config
+    const configResponse = await fetch('/config');
+    const config = await configResponse.json();
+
+    const clustersToConfig: { [key: string]: any } = {};
+    if (config?.clusters) {
+      config.clusters.forEach((cluster: { name: string; server?: string }) => {
+        clustersToConfig[cluster.name] = {
+          name: cluster.name,
+          server: cluster.server || '',
+        };
+      });
+    }
+
+    dispatch(setConfig({ clusters: clustersToConfig }));
+    setError(null);
+  };
+
+  const handleDeleteCluster = async () => {
+    if (!clusterToDelete) return;
+
+    try {
+      const response = await fetch(`/api/cluster/${encodeURIComponent(clusterToDelete)}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete cluster');
+      }
+
+      removeStoredCluster(clusterToDelete);
+
+      const configResponse = await fetch('/config');
+      const config = await configResponse.json();
+
+      const clustersToConfig: { [key: string]: any } = {};
+      if (config?.clusters) {
+        config.clusters.forEach((cluster: { name: string; server?: string }) => {
+          clustersToConfig[cluster.name] = {
+            name: cluster.name,
+            server: cluster.server || '',
+          };
+        });
+      }
+
+      dispatch(setConfig({ clusters: clustersToConfig }));
+      setDeleteDialogOpen(false);
+      setClusterToDelete(null);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
 
   return (
-    <PageGrid>
-      <SectionBox title="Home" headerProps={{ headerStyle: 'main' }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-          <Tabs value={view} onChange={(_, newView) => setView(() => newView)}>
-            <Tab
-              value="clusters"
-              label={
-                <>
-                  <Icon icon="mdi:hexagon-multiple-outline" />
-                  <Typography>{t('All Clusters')}</Typography>
-                </>
-              }
-              sx={{
-                flexDirection: 'row',
-                gap: 1,
-                fontSize: '1.25rem',
-              }}
-            />
-            <Tab
-              value="projects"
-              label={
-                <>
-                  <Icon icon="mdi:folder-multiple" />
-                  <Typography>{t('Projects')}</Typography>
-                </>
-              }
-              sx={{
-                flexDirection: 'row',
-                gap: 1,
-                fontSize: '1.25rem',
-              }}
-            />
-          </Tabs>
+    <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
+      {/* Header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
+        <Box>
+          <Typography variant="h4" fontWeight={700}>
+            Clusters
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {clusterCount === 0
+              ? 'No clusters configured'
+              : `${clusterCount} cluster${clusterCount !== 1 ? 's' : ''} configured`}
+          </Typography>
         </Box>
+        <Button
+          variant="contained"
+          startIcon={<Icon icon="mdi:plus" />}
+          onClick={() => setAddDialogOpen(true)}
+        >
+          Add Cluster
+        </Button>
+      </Box>
 
-        {view === 'clusters' && memoizedComponent}
-        {view === 'projects' && <ProjectList />}
-      </SectionBox>
-    </PageGrid>
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {clusterCount === 0 ? (
+        <EmptyState onAddCluster={() => setAddDialogOpen(true)} />
+      ) : (
+        <>
+          {/* Aggregate Stats */}
+          {clusterCount > 1 && (
+            <Grid container spacing={2} sx={{ mb: 4 }}>
+              <Grid size={{ xs: 6, sm: 3 }}>
+                <StatCard
+                  title="Clusters"
+                  icon="mdi:hexagon-multiple"
+                  total={aggregate.clusters.total}
+                  loading={loading}
+                  color={theme.palette.primary.main}
+                  breakdown={[
+                    { label: 'connected', value: aggregate.clusters.connected, color: theme.palette.success.main },
+                    { label: 'offline', value: aggregate.clusters.disconnected, color: theme.palette.error.main },
+                  ]}
+                />
+              </Grid>
+              <Grid size={{ xs: 6, sm: 3 }}>
+                <StatCard
+                  title="Nodes"
+                  icon="mdi:server"
+                  total={aggregate.nodes.total}
+                  loading={loading}
+                  color={theme.palette.info.main}
+                  breakdown={[
+                    { label: 'ready', value: aggregate.nodes.ready, color: theme.palette.success.main },
+                    { label: 'down', value: aggregate.nodes.down, color: theme.palette.error.main },
+                  ]}
+                />
+              </Grid>
+              <Grid size={{ xs: 6, sm: 3 }}>
+                <StatCard
+                  title="Jobs"
+                  icon="mdi:briefcase-outline"
+                  total={aggregate.jobs.total}
+                  loading={loading}
+                  color={theme.palette.success.main}
+                  breakdown={[
+                    { label: 'running', value: aggregate.jobs.running, color: theme.palette.success.main },
+                    { label: 'pending', value: aggregate.jobs.pending, color: theme.palette.warning.main },
+                    { label: 'dead', value: aggregate.jobs.dead, color: theme.palette.error.main },
+                  ]}
+                />
+              </Grid>
+              <Grid size={{ xs: 6, sm: 3 }}>
+                <StatCard
+                  title="Allocations"
+                  icon="mdi:cube-outline"
+                  total={aggregate.allocations.total}
+                  loading={loading}
+                  color={theme.palette.warning.main}
+                  breakdown={[
+                    { label: 'running', value: aggregate.allocations.running, color: theme.palette.success.main },
+                    { label: 'pending', value: aggregate.allocations.pending, color: theme.palette.warning.main },
+                    { label: 'failed', value: aggregate.allocations.failed, color: theme.palette.error.main },
+                  ]}
+                />
+              </Grid>
+            </Grid>
+          )}
+
+          {/* Search and View Controls */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+            <TextField
+              placeholder="Search clusters..."
+              size="small"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Icon icon="mdi:magnify" width={20} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ width: 280 }}
+            />
+            <Box sx={{ flex: 1 }} />
+            <ToggleButtonGroup
+              size="small"
+              value={viewMode}
+              exclusive
+              onChange={(_, value) => value && setViewMode(value)}
+            >
+              <ToggleButton value="grid">
+                <Icon icon="mdi:view-grid" width={20} />
+              </ToggleButton>
+              <ToggleButton value="list">
+                <Icon icon="mdi:view-list" width={20} />
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          {/* Cluster Grid/List */}
+          <Grid container spacing={2}>
+            {filteredClusters.map(cluster => (
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: viewMode === 'grid' ? 6 : 12,
+                  md: viewMode === 'grid' ? 4 : 12,
+                  lg: viewMode === 'grid' ? 3 : 12,
+                }}
+                key={cluster.name}
+              >
+                <ClusterCard
+                  name={cluster.name}
+                  server={cluster.server}
+                  health={clusterHealth[cluster.name] || null}
+                  loading={loading}
+                  onDelete={name => {
+                    setClusterToDelete(name);
+                    setDeleteDialogOpen(true);
+                  }}
+                />
+              </Grid>
+            ))}
+          </Grid>
+
+          {filteredClusters.length === 0 && searchQuery && (
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <Icon icon="mdi:magnify" width={48} style={{ opacity: 0.3 }} />
+              <Typography color="text.secondary" sx={{ mt: 2 }}>
+                No clusters match "{searchQuery}"
+              </Typography>
+            </Box>
+          )}
+        </>
+      )}
+
+      <AddClusterDialog
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        onAdd={handleAddCluster}
+      />
+
+      <DeleteClusterDialog
+        open={deleteDialogOpen}
+        clusterName={clusterToDelete || ''}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setClusterToDelete(null);
+        }}
+        onDelete={handleDeleteCluster}
+      />
+    </Box>
   );
 }

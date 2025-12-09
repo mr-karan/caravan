@@ -1,23 +1,6 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { without } from 'lodash';
 import { matchPath } from 'react-router';
 import { getBaseUrl } from '../helpers/getBaseUrl';
-import { isElectron } from '../helpers/isElectron';
 
 /**
  * @returns A path prefixed with cluster path, and the given path.
@@ -56,15 +39,11 @@ export function getCluster(urlPath?: string): string | null {
 /** Returns cluster URL parameter from the current path or the given path */
 export function getClusterPathParam(maybeUrlPath?: string): string | undefined {
   const prefix = getBaseUrl();
-  const urlPath =
-    maybeUrlPath ??
-    (isElectron()
-      ? window.location.hash.substring(1)
-      : window.location.pathname.slice(prefix.length));
+  const urlPath = maybeUrlPath ?? window.location.pathname.slice(prefix.length);
 
-  const clusterURLMatch = matchPath<{ cluster?: string }>(urlPath, {
-    path: getClusterPrefixedPath(),
-  });
+  // In React Router v6/v7, we need to use a wildcard pattern to match sub-paths
+  // e.g., '/c/:cluster/*' matches '/c/nomad-pri/nodes'
+  const clusterURLMatch = matchPath('/c/:cluster/*', urlPath);
 
   return clusterURLMatch?.params?.cluster;
 }

@@ -6,22 +6,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
+	"github.com/caravan-nomad/caravan/backend/pkg/spa"
 )
 
 const (
-	staticTestPath = "headlamp_testdata/static_files/"
+	staticTestPath = "caravan_testdata/static_files/"
 )
 
 // Is supposed to return the index.html if there is no static file.
 func TestSpaHandlerMissing(t *testing.T) {
-	req, err := http.NewRequest("GET", "/headlampxxx", nil)
+	req, err := http.NewRequest("GET", "/caravanxxx", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := spa.NewHandler(staticTestPath, "index.html", "/headlamp")
+	handler := spa.NewHandler(staticTestPath, "index.html", "/caravan")
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
@@ -39,13 +39,13 @@ func TestSpaHandlerMissing(t *testing.T) {
 
 // Works with a baseURL to get the index.html.
 func TestSpaHandlerBaseURL(t *testing.T) {
-	req, err := http.NewRequest("GET", "/headlamp/", nil)
+	req, err := http.NewRequest("GET", "/caravan/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := spa.NewHandler(staticTestPath, "index.html", "/headlamp")
+	handler := spa.NewHandler(staticTestPath, "index.html", "/caravan")
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
@@ -62,13 +62,13 @@ func TestSpaHandlerBaseURL(t *testing.T) {
 
 // Works with a baseURL to get other files.
 func TestSpaHandlerOtherFiles(t *testing.T) {
-	req, err := http.NewRequest("GET", "/headlamp/example.css", nil) //nolint:noctx
+	req, err := http.NewRequest("GET", "/caravan/example.css", nil) //nolint:noctx
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := spa.NewHandler(staticTestPath, "index.html", "/headlamp")
+	handler := spa.NewHandler(staticTestPath, "index.html", "/caravan")
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {

@@ -1,28 +1,11 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { green, grey, orange, pink, red } from '@mui/material/colors';
-import { createTheme, getContrastRatio, useTheme } from '@mui/material/styles';
+import { createTheme, getContrastRatio, useTheme, PaletteColor, PaletteColorOptions } from '@mui/material/styles';
 import React from 'react';
 import type { AppTheme } from './AppTheme';
 
-declare module '@mui/material/styles/createPalette.d' {
+declare module '@mui/material/styles' {
   interface Palette {
     success: PaletteColor;
-    background: TypeBackground;
     sidebar: {
       background: string;
       color: string;
@@ -34,10 +17,39 @@ declare module '@mui/material/styles/createPalette.d' {
       background: string;
       color: string;
     };
+    squareButton: {
+      background: string;
+    };
+    headerStyle: {
+      normal: Record<string, string>;
+      main: Record<string, string>;
+      subsection: Record<string, string>;
+      label: Record<string, string>;
+    };
     [propName: string]: any;
   }
   interface PaletteOptions {
     success?: PaletteColorOptions;
+    sidebar?: {
+      background?: string;
+      color?: string;
+      selectedBackground?: string;
+      selectedColor?: string;
+      actionBackground?: string;
+    };
+    navbar?: {
+      background?: string;
+      color?: string;
+    };
+    squareButton?: {
+      background?: string;
+    };
+    headerStyle?: {
+      normal?: Record<string, string>;
+      main?: Record<string, string>;
+      subsection?: Record<string, string>;
+      label?: Record<string, string>;
+    };
     [propName: string]: any;
   }
 
@@ -175,9 +187,11 @@ export function createMuiTheme(currentTheme: AppTheme) {
       },
       tables: {
         head: {
-          background: '#faf9f8',
-          color: '#242424',
-          borderColor: 'rgba(0,0,0,0.12)',
+          // Minimal table headers - subtle background
+          background: 'rgba(0, 0, 0, 0.02)',
+          color: '#6b7280',
+          text: '#6b7280',
+          borderColor: 'rgba(0, 0, 0, 0.08)',
         },
         body: {
           background: '#fff',
@@ -278,9 +292,11 @@ export function createMuiTheme(currentTheme: AppTheme) {
         ...commonRules.palette,
         tables: {
           head: {
-            background: '#000',
-            color: '#aeaeae',
-            borderColor: 'rgba(255,255,255,0.12)',
+            // Minimal table headers - subtle background for dark mode
+            background: 'rgba(255, 255, 255, 0.03)',
+            color: '#9ca3af',
+            text: '#9ca3af',
+            borderColor: 'rgba(255, 255, 255, 0.08)',
           },
           body: {
             background: '#1B1A19',
@@ -446,7 +462,7 @@ export function usePrefersColorScheme() {
  * Hook gets theme based on user preference, and also OS/Browser preference.
  */
 export function getThemeName(): string {
-  const themePreference = localStorage.headlampThemePreference;
+  const themePreference = localStorage.caravanThemePreference;
 
   if (typeof window.matchMedia !== 'function') {
     return 'light';
@@ -470,5 +486,5 @@ export function getThemeName(): string {
 }
 
 export function setTheme(themeName: string) {
-  localStorage.headlampThemePreference = themeName;
+  localStorage.caravanThemePreference = themeName;
 }

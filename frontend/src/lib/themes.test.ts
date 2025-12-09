@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { describe, expect, it, vi } from 'vitest';
 import { AppTheme } from './AppTheme';
 import { createMuiTheme, getThemeName, setTheme } from './themes';
@@ -38,7 +22,7 @@ describe('themes.ts', () => {
   describe('getThemeName', () => {
     it('should return light theme by default', () => {
       vi.stubGlobal('localStorage', {
-        headlampThemePreference: null,
+        caravanThemePreference: null,
         clear: vi.fn(),
       });
       vi.stubGlobal('window', {
@@ -50,7 +34,7 @@ describe('themes.ts', () => {
 
     it('should return dark theme if user prefers dark mode', () => {
       vi.stubGlobal('localStorage', {
-        headlampThemePreference: null,
+        caravanThemePreference: null,
         clear: vi.fn(),
       });
       vi.stubGlobal('window', {
@@ -64,7 +48,7 @@ describe('themes.ts', () => {
 
     it('should return the theme stored in localStorage', () => {
       vi.stubGlobal('localStorage', {
-        headlampThemePreference: 'dark',
+        caravanThemePreference: 'dark',
         clear: vi.fn(),
       });
       expect(getThemeName()).toBe('dark');
@@ -73,11 +57,11 @@ describe('themes.ts', () => {
 
   describe('setTheme', () => {
     it('should set the theme in localStorage', () => {
-      const mockLocalStorage = { headlampThemePreference: null, clear: vi.fn() };
+      const mockLocalStorage = { caravanThemePreference: null, clear: vi.fn() };
       vi.stubGlobal('localStorage', mockLocalStorage);
 
       setTheme('dark');
-      expect(mockLocalStorage.headlampThemePreference).toBe('dark');
+      expect(mockLocalStorage.caravanThemePreference).toBe('dark');
     });
   });
 });

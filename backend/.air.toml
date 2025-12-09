@@ -12,7 +12,7 @@ tmp_dir = "tmp"
   exclude_regex = ["_test.go"]
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = "HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./tmp/main"
+  full_bin = "CARAVAN_BACKEND_TOKEN=caravan CARAVAN_CONFIG_ENABLE_HELM=true CARAVAN_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./tmp/main"
   include_dir = []
   include_ext = ["go", "tpl", "tmpl", "html"]
   include_file = []

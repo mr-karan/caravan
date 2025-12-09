@@ -1,37 +1,15 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import humanizeDuration from 'humanize-duration';
 import merge from 'lodash/merge';
 import React from 'react';
-import { useHistory } from 'react-router';
-import { filterGeneric, filterResource } from '../redux/filterSlice';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { filterGeneric } from '../redux/filterSlice';
 import { useTypedSelector } from '../redux/hooks';
 import store from '../redux/stores/store';
 import { getCluster, getClusterGroup, getClusterPrefixedPath } from './cluster';
-import type { ApiError } from './k8s/api/v2/ApiError';
-import type { KubeMetrics } from './k8s/cluster';
-import type { KubeEvent } from './k8s/event';
-import type { KubeObjectInterface } from './k8s/KubeObject';
-import Node from './k8s/node';
-import type { Workload } from './k8s/Workload';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
 
 // Exported to keep compatibility for plugins that may have used them.
-export { filterGeneric, filterResource, getClusterPrefixedPath, getCluster, getClusterGroup };
+export { filterGeneric, getClusterPrefixedPath, getCluster, getClusterGroup };
 
 const humanize = humanizeDuration.humanizer();
 humanize.languages['en-mini'] = {
@@ -127,19 +105,6 @@ export function getPercentStr(value: number, total: number) {
   return `${percentage.toFixed(decimals)} %`;
 }
 
-export function getReadyReplicas(item: Workload) {
-  return item.status.readyReplicas || item.status.numberReady || 0;
-}
-
-export function getTotalReplicas(item: Workload) {
-  return (
-    item.spec.replicas ||
-    item.status.currentNumberScheduled ||
-    item.status.desiredNumberScheduled ||
-    0
-  );
-}
-
 export function getResourceStr(value: number, resourceType: 'cpu' | 'memory') {
   const resourceFormatters: any = {
     cpu: unparseCpu,
@@ -150,47 +115,24 @@ export function getResourceStr(value: number, resourceType: 'cpu' | 'memory') {
   return `${valueInfo.value}${valueInfo.unit}`;
 }
 
-export function getResourceMetrics(
-  item: Node,
-  metrics: KubeMetrics[],
-  resourceType: 'cpu' | 'memory'
-) {
-  if (item.status.capacity === undefined) {
-    return [0, 0];
-  }
-  const resourceParsers: any = {
-    cpu: parseCpu,
-    memory: parseRam,
-  };
-
-  const parser = resourceParsers[resourceType];
-  const itemMetrics = metrics.find(itemMetrics => itemMetrics.metadata.name === item.getName());
-
-  const used = parser(itemMetrics ? itemMetrics.usage[resourceType] : '0');
-  const capacity = parser(item.status.capacity[resourceType]);
-
-  return [used, capacity];
-}
-
 /**
- * Get a function to filter kube resources based on the current global filter state.
+ * Get a function to filter resources based on the current global filter state.
  *
  * @returns A filter function that can be used to filter a list of items.
  * @param matchCriteria - The JSONPath criteria to match.
  */
-export function useFilterFunc<
-  T extends { [key: string]: any } | KubeObjectInterface | KubeEvent =
-    | KubeObjectInterface
-    | KubeEvent
->(matchCriteria?: string[]) {
+export function useFilterFunc<T extends { [key: string]: any }>(matchCriteria?: string[]) {
   const filter = useTypedSelector(state => state.filter);
 
   return (item: T, search?: string) => {
-    if (item?.metadata) {
-      return filterResource(item as KubeObjectInterface | KubeEvent, filter, search, matchCriteria);
-    }
     return filterGeneric<T>(item, search, matchCriteria);
   };
+}
+
+export interface ApiError {
+  status?: number;
+  message?: string;
+  [key: string]: any;
 }
 
 export function useErrorState(dependentSetter?: (...args: any) => void) {
@@ -277,7 +219,8 @@ export function useURLState<T extends string | number | undefined = string>(
   const params: URLStateParams<T> =
     typeof paramsOrDefault === 'object' ? paramsOrDefault : { defaultValue: paramsOrDefault };
   const { defaultValue, hideDefault = true, prefix = '' } = params;
-  const history = useHistory();
+  const location = useLocation();
+  const navigate = useNavigate();
   // Don't even use the prefix if the key is empty
   const fullKey = !key ? '' : !!prefix ? prefix + '.' + key : key;
 
@@ -287,7 +230,7 @@ export function useURLState<T extends string | number | undefined = string>(
       return null;
     }
 
-    const urlParams = new URLSearchParams(history.location.search);
+    const urlParams = new URLSearchParams(location.search);
     const urlValue = urlParams.get(fullKey);
     if (urlValue === null) {
       return null;
@@ -324,7 +267,7 @@ export function useURLState<T extends string | number | undefined = string>(
       }
     },
     // eslint-disable-next-line
-    [history]
+    [location]
   );
 
   React.useEffect(() => {
@@ -339,7 +282,7 @@ export function useURLState<T extends string | number | undefined = string>(
       return;
     }
 
-    const urlParams = new URLSearchParams(history.location.search);
+    const urlParams = new URLSearchParams(location.search);
     let shouldUpdateURL = false;
 
     if ((value === null || value === defaultValue) && hideDefault) {
@@ -355,7 +298,7 @@ export function useURLState<T extends string | number | undefined = string>(
     }
 
     if (shouldUpdateURL) {
-      history.replace({ search: urlParams.toString() });
+      navigate({ search: urlParams.toString() }, { replace: true });
     }
   }, [value]);
 
@@ -394,11 +337,6 @@ export function normalizeUnit(resourceType: string, quantity: string) {
       break;
 
     case 'memory':
-      /**
-       * Decimal: m | n | "" | k | M | G | T | P | E
-       * Binary: Ki | Mi | Gi | Ti | Pi | Ei
-       * Refer https://github.com/kubernetes-client/csharp/blob/840a90e24ef922adee0729e43859cf6b43567594/src/KubernetesClient.Models/ResourceQuantity.cs#L211
-       */
       bytes = parseInt(quantity);
       if (quantity.endsWith('Ki')) {
         bytes *= 1024;

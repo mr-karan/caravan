@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { Icon, InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -29,7 +13,6 @@ import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
 import { SxProps } from '@mui/system';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../lib/util';
 import { useSettings } from '../App/Settings/hook';
@@ -93,11 +76,11 @@ interface ColumnSortButtonProps {
 }
 
 function ColumnSortButtons(props: ColumnSortButtonProps) {
-  const { t } = useTranslation();
+  
   const { isDefaultSorted, isIncreasingOrder, clickHandler } = props;
   return isDefaultSorted ? (
     <IconButton
-      aria-label={isIncreasingOrder ? t('translation|sort up') : t('translation|sort down')}
+      aria-label={isIncreasingOrder ? 'sort up' : 'sort down'}
       size="small"
       onClick={() => clickHandler(!isIncreasingOrder)}
     >
@@ -105,7 +88,7 @@ function ColumnSortButtons(props: ColumnSortButtonProps) {
     </IconButton>
   ) : (
     <IconButton
-      aria-label={t('translation|sort swap')}
+      aria-label="sort swap"
       size="small"
       onClick={() => clickHandler(true)}
     >
@@ -189,7 +172,7 @@ export default function SimpleTable(props: SimpleTableProps) {
   const [sortColIndex, setSortColIndex] = React.useState(
     defaultSortingColumn ? Math.abs(defaultSortingColumn) - 1 : -1
   );
-  const { t } = useTranslation();
+  
 
   function handleChangePage(_event: any, newPage: number) {
     setPage(newPage);
@@ -310,7 +293,7 @@ export default function SimpleTable(props: SimpleTableProps) {
       return <Empty color="error">{errorMessage}</Empty>;
     }
 
-    return <Loader title={t('Loading table data')} />;
+    return <Loader title="Loading table data" />;
   }
 
   let filteredData = displayData;
@@ -332,16 +315,24 @@ export default function SimpleTable(props: SimpleTableProps) {
 
   return !currentData || currentData.length === 0 ? (
     <Paper variant="outlined">
-      <Empty>{emptyMessage || t('No data to be shown.')}</Empty>
+      <Empty>{emptyMessage || 'No data to be shown.'}</Empty>
     </Paper>
   ) : (
     <TableContainer
       className={className}
-      sx={{
-        overflowY: 'hidden',
-        ...sx,
-      }}
+      sx={[
+        theme => ({
+          overflowY: 'hidden',
+          // Minimal container styling - lighter border, no heavy shadow
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: `${theme.shape.borderRadius}px`,
+          backgroundColor: theme.palette.background.default,
+        }),
+        // Spread additional sx props
+        ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
+      ]}
       component={Paper}
+      elevation={0}
       variant="outlined"
     >
       {
@@ -357,7 +348,7 @@ export default function SimpleTable(props: SimpleTableProps) {
                 setPage(0);
               }}
             >
-              {t('translation|Refresh')}
+              "Refresh"
             </Button>
           </Box>
         )
@@ -370,33 +361,55 @@ export default function SimpleTable(props: SimpleTableProps) {
           gridTemplateColumns: gridTemplateColumns || '1fr',
           background: theme.palette.background.default,
           [theme.breakpoints.down('sm')]: {
-            overflowX: 'auto', // make it responsive
+            overflowX: 'auto',
           },
+          // Minimal table cell styling - less padding, cleaner borders
           '& .MuiTableCell-root': {
             borderColor: theme.palette.divider,
-            padding: '8px 16px 7px 16px',
+            borderBottom: `1px solid ${theme.palette.divider}`,
+            padding: '10px 12px',
             [theme.breakpoints.down('sm')]: {
-              padding: '15px 24px 15px 16px',
+              padding: '12px 16px',
             },
             overflow: 'hidden',
             width: '100%',
             wordWrap: 'break-word',
+            fontSize: '0.8125rem',
+            lineHeight: 1.5,
           },
+          // Clean row styling with subtle hover
           '& .MuiTableBody-root': {
+            '& .MuiTableRow-root': {
+              transition: 'background-color 0.15s ease',
+              '&:hover': {
+                backgroundColor: theme.palette.mode === 'dark'
+                  ? 'rgba(255, 255, 255, 0.04)'
+                  : 'rgba(0, 0, 0, 0.02)',
+              },
+            },
             '& .MuiTableRow-root:last-child': {
               '& .MuiTableCell-root': {
                 borderBottom: 'none',
               },
             },
           },
+          // Minimal header styling - no heavy background
           '& .MuiTableCell-head': {
             overflow: 'hidden',
             textOverflow: 'unset',
             whiteSpace: 'nowrap',
-            color: theme.palette.tables.head.text,
-            background: theme.palette.background.muted,
+            color: theme.palette.text.secondary,
+            // Lighter background, more subtle
+            background: theme.palette.mode === 'dark'
+              ? 'rgba(255, 255, 255, 0.03)'
+              : 'rgba(0, 0, 0, 0.02)',
             width: '100%',
             minWidth: 'max-content',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.03em',
+            borderBottom: `1px solid ${theme.palette.divider}`,
           },
           '& .MuiTableHead-root, & .MuiTableRow-root, & .MuiTableBody-root': {
             display: 'contents',
@@ -459,7 +472,7 @@ export default function SimpleTable(props: SimpleTableProps) {
           ) : (
             <TableRow>
               <TableCell style={{ gridColumn: `span ${columns.length}` }}>
-                <Empty>{t('No data matching the filter criteria.')}</Empty>
+                <Empty>"No data matching the filter criteria."</Empty>
               </TableCell>
             </TableRow>
           )}

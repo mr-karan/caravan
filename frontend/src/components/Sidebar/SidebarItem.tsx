@@ -1,26 +1,9 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import Collapse from '@mui/material/Collapse';
 import List from '@mui/material/List';
 import ListItem, { ListItemProps } from '@mui/material/ListItem';
 import React, { memo } from 'react';
 import { generatePath } from 'react-router';
-import { formatClusterPathParam, getClusterPrefixedPath } from '../../lib/cluster';
-import { useSelectedClusters } from '../../lib/k8s';
+import { formatClusterPathParam, getClusterPrefixedPath, getSelectedClusters } from '../../lib/cluster';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
 import ListItemLink from './ListItemLink';
@@ -84,7 +67,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     isCR,
     ...other
   } = props;
-  const clusters = useSelectedClusters();
+  const clusters = getSelectedClusters();
   let fullURL = url;
   if (fullURL && useClusterURL && clusters.length && !fullURL.startsWith('http')) {
     fullURL = generatePath(getClusterPrefixedPath(url), {

@@ -1,23 +1,6 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import spacetime from 'spacetime';
 
 export interface TimezoneSelectorProps {
@@ -29,7 +12,6 @@ export interface TimezoneSelectorProps {
 
 export default function TimezoneSelect(props: TimezoneSelectorProps) {
   const { onChange, initialTimezone, nameLabelID } = props;
-  const { i18n, t } = useTranslation();
   const timezoneOptions = React.useMemo(() => {
     const timezoneNames = spacetime.timezones();
     return Object.keys(timezoneNames).map(name => {
@@ -39,7 +21,7 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
         offset: timezone.current.offset,
       };
     });
-  }, [i18n.language]);
+  }, []);
 
   return (
     <Autocomplete
@@ -55,7 +37,7 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
       renderInput={params => (
         <TextField
           {...params}
-          helperText={t('Timezone')}
+          helperText="Timezone"
           size="small"
           variant="outlined"
           inputProps={{

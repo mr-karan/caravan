@@ -1,35 +1,12 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-import { InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Drawer from '@mui/material/Drawer';
 import Grid from '@mui/material/Grid';
 import List from '@mui/material/List';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import React, { memo, useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory } from 'react-router-dom';
-import { isElectron } from '../../helpers/isElectron';
-import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import ActionButton from '../common/ActionButton';
-import CreateButton from '../common/Resource/CreateButton';
 import NavigationTabs from './NavigationTabs';
 import SidebarItem, { SidebarItemProps } from './SidebarItem';
 import { DefaultSidebars, setSidebarSelected, setWhetherSidebarOpen } from './sidebarSlice';
@@ -68,39 +45,11 @@ export function useSidebarInfo() {
   };
 }
 
-function AddClusterButton() {
-  const history = useHistory();
-  const { t } = useTranslation(['translation']);
-  const { isOpen } = useSidebarInfo();
-
-  return (
-    <Box pb={2}>
-      {isOpen ? (
-        <Button
-          onClick={() => history.push(createRouteURL('addCluster'))}
-          startIcon={<InlineIcon icon="mdi:plus-box-outline" />}
-          sx={{ color: theme => theme.palette.sidebar.color }}
-        >
-          {t('translation|Add Cluster')}
-        </Button>
-      ) : (
-        <ActionButton
-          onClick={() => history.push(createRouteURL('addCluster'))}
-          icon="mdi:plus-box-outline"
-          description={t('translation|Add Cluster')}
-          color="#adadad"
-          width={38}
-        />
-      )}
-    </Box>
-  );
-}
-
 function SidebarToggleButton() {
   const dispatch = useDispatch();
   const { isOpen, isNarrow, canExpand, isTemporary } = useSidebarInfo();
 
-  const { t } = useTranslation();
+  
   const isNarrowOnly = isNarrow && !canExpand;
 
   if (isTemporary || isNarrowOnly) {
@@ -120,7 +69,7 @@ function SidebarToggleButton() {
           dispatch(setWhetherSidebarOpen(!isOpen));
         }}
         icon={isOpen ? 'mdi:chevron-left-box-outline' : 'mdi:chevron-right-box-outline'}
-        description={isOpen ? t('translation|Shrink sidebar') : t('translation|Expand sidebar')}
+        description={isOpen ? 'Shrink sidebar' : 'Expand sidebar'}
       />
     </Box>
   );
@@ -133,22 +82,17 @@ const DefaultLinkArea = memo((props: { sidebarName: string; isOpen: boolean }) =
     return (
       <Box
         display="flex"
-        justifyContent="space-between"
+        justifyContent="center"
         alignItems="center"
-        flexDirection={isOpen ? 'row' : 'column'}
         p={1}
       >
-        <Box>{isElectron() && <AddClusterButton />}</Box>
-        <Box>
-          <SidebarToggleButton />
-        </Box>
+        <SidebarToggleButton />
       </Box>
     );
   }
 
   return (
     <Box textAlign="center">
-      <CreateButton isNarrow={!isOpen} />
       <Box
         display="flex"
         justifyContent="space-between"
@@ -277,7 +221,7 @@ export const PureSidebar = memo(
     search,
     linkArea,
   }: PureSidebarProps) => {
-    const { t } = useTranslation();
+    
     const listContainerRef = React.useRef<HTMLDivElement | null>(null);
     const [isOverflowing, setIsOverflowing] = React.useState(false);
     const [scrollbarWidth, setScrollbarWidth] = React.useState(0);
@@ -321,7 +265,7 @@ export const PureSidebar = memo(
           wrap="nowrap"
           aria-hidden={!largeSideBarOpen}
         >
-          <Grid item>
+          <Grid>
             <List
               onClick={isTemporaryDrawer ? toggleDrawer : undefined}
               onKeyDown={isTemporaryDrawer ? toggleDrawer : undefined}
@@ -338,7 +282,7 @@ export const PureSidebar = memo(
               ))}
             </List>
           </Grid>
-          <Grid item>
+          <Grid>
             <Box textAlign="center">{linkArea}</Box>
           </Grid>
         </Grid>
@@ -378,7 +322,7 @@ export const PureSidebar = memo(
     return (
       <Box
         component="nav"
-        aria-label={t('translation|Navigation')}
+        aria-label="Navigation"
         sx={{ minHeight: 0, gridColumn: '1 / 2', gridRow: '1 / 3' }}
       >
         <Drawer

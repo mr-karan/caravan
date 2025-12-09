@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
@@ -21,7 +5,7 @@ import svgr from 'vite-plugin-svgr';
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
 // Use environment variable for backend port, defaulting to 4466
-const backendPort = process.env.HEADLAMP_PORT || '4466';
+const backendPort = process.env.CARAVAN_PORT || '4466';
 const backendTarget = `http://localhost:${backendPort}`;
 
 export default defineConfig({
@@ -30,16 +14,15 @@ export default defineConfig({
   },
   envPrefix: 'REACT_APP_',
   base: process.env.PUBLIC_URL,
+  // Explicitly set appType to SPA to ensure fallback to index.html for client-side routing
+  appType: 'spa',
   server: {
     port: 3000,
     proxy: {
       '/api': {
         target: backendTarget,
         changeOrigin: true,
-      },
-      '/clusters': {
-        target: backendTarget,
-        changeOrigin: true,
+        ws: true, // Enable WebSocket proxying for exec
       },
       '/plugins': {
         target: backendTarget,
@@ -79,10 +62,6 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/parseKubeConfig': {
-        target: backendTarget,
-        changeOrigin: true,
-      },
-      '/cluster': {
         target: backendTarget,
         changeOrigin: true,
       },
@@ -131,26 +110,43 @@ export default defineConfig({
       external: ['@axe-core/react'],
       output: {
         manualChunks(id: string) {
-          // Build smaller chunks for @mui, lodash, xterm, recharts
+          // Build smaller chunks for heavy dependencies - lazy loaded
           if (id.includes('node_modules')) {
+            // Monaco editor - very large, lazy load
+            if (id.includes('monaco-editor') || id.includes('@monaco-editor')) {
+              return 'vendor-monaco';
+            }
+
+            // Lodash - tree-shaken but still chunked separately
             if (id.includes('lodash')) {
               return 'vendor-lodash';
             }
 
+            // MUI - core UI framework
             if (id.includes('@mui/material')) {
               return 'vendor-mui';
             }
 
+            // XTerm - lazy loaded for log viewer
             if (id.includes('xterm')) {
               return 'vendor-xterm';
             }
 
+            // Recharts - lazy loaded for charts
             if (id.includes('recharts')) {
               return 'vendor-recharts';
+            }
+
+            // React Query - commonly used
+            if (id.includes('@tanstack/react-query')) {
+              return 'vendor-react-query';
             }
           }
         },
       },
     },
+    // Enable better minification
+    minify: 'esbuild',
+    target: 'esnext',
   },
 });

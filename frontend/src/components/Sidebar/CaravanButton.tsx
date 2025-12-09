@@ -1,0 +1,60 @@
+import { Icon } from '@iconify/react';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { styled } from '@mui/system';
+import { getThemeName } from '../../lib/themes';
+import { AppLogo } from '../App/AppLogo';
+
+export interface CaravanButtonProps {
+  /** If the sidebar is fully expanded open or shrunk. */
+  open: boolean;
+  /** Only show if we are in mobile breakpoint and not open. */
+  mobileOnly?: boolean;
+  /** Called when sidebar toggles between open and closed. */
+  onToggleOpen: () => void;
+  /** Whether the button is to be disabled or not. */
+  disabled?: boolean;
+}
+
+const StyledIcon = styled(Icon)`
+  margin-right: ${({ theme }) => theme.spacing(1)};
+`;
+
+export default function CaravanButton({
+  open,
+  onToggleOpen,
+  mobileOnly,
+  disabled = false,
+}: CaravanButtonProps) {
+  const isSmall = useMediaQuery('(max-width:600px)');
+
+
+  if (mobileOnly && (!isSmall || (isSmall && open))) {
+    return null;
+  }
+
+  return (
+    <Box>
+      <Button
+        onClick={onToggleOpen}
+        sx={theme => ({
+          padding: isSmall && !open ? `10px 10px` : '6px 8px',
+          color: theme.palette.text.primary,
+        })}
+        aria-label={open ? 'Shrink sidebar' : 'Expand sidebar'}
+        disabled={disabled}
+      >
+        <StyledIcon icon={open ? 'mdi:backburger' : 'mdi:menu'} width="1.5rem" />
+        <AppLogo
+          logoType={'large'}
+          themeName={getThemeName()}
+          sx={{
+            height: '32px',
+            width: 'auto',
+          }}
+        />
+      </Button>
+    </Box>
+  );
+}

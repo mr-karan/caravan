@@ -1,19 +1,3 @@
-/*
-Copyright 2025 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package auth_test
 
 import (
@@ -23,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
+	"github.com/caravan-nomad/caravan/backend/pkg/auth"
 )
 
 const (
@@ -132,21 +116,21 @@ func TestGetCookiePath(t *testing.T) {
 		},
 		{
 			name:     "base URL without leading slash",
-			baseURL:  "headlamp",
+			baseURL:  "caravan",
 			cluster:  "test-cluster",
-			wantPath: "/headlamp/clusters/test-cluster",
+			wantPath: "/caravan/clusters/test-cluster",
 		},
 		{
 			name:     "base URL with leading slash",
-			baseURL:  "/headlamp",
+			baseURL:  "/caravan",
 			cluster:  "test-cluster",
-			wantPath: "/headlamp/clusters/test-cluster",
+			wantPath: "/caravan/clusters/test-cluster",
 		},
 		{
 			name:     "base URL with trailing slash",
-			baseURL:  "/headlamp/",
+			baseURL:  "/caravan/",
 			cluster:  "test-cluster",
-			wantPath: "/headlamp/clusters/test-cluster",
+			wantPath: "/caravan/clusters/test-cluster",
 		},
 	}
 
@@ -175,8 +159,8 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 	}
 
 	cookie := cookies[0]
-	if cookie.Name != "headlamp-auth-test-cluster.0" {
-		t.Errorf("Expected cookie name 'headlamp-auth-test-cluster.0', got %q", cookie.Name)
+	if cookie.Name != "caravan-auth-test-cluster.0" {
+		t.Errorf("Expected cookie name 'caravan-auth-test-cluster.0', got %q", cookie.Name)
 	}
 
 	if cookie.Value != "test-token" {
@@ -243,7 +227,7 @@ func TestClearAuthCookie(t *testing.T) {
 
 	// Set cookie
 	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-test-cluster.0",
+		Name:     "caravan-auth-test-cluster.0",
 		Value:    "test-token",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
@@ -270,8 +254,8 @@ func TestClearAuthCookie(t *testing.T) {
 	}
 
 	cookie := clearedCookies[0]
-	if cookie.Name != "headlamp-auth-test-cluster.0" {
-		t.Errorf("Expected cookie name 'headlamp-auth-test-cluster.0', got %q", cookie.Name)
+	if cookie.Name != "caravan-auth-test-cluster.0" {
+		t.Errorf("Expected cookie name 'caravan-auth-test-cluster.0', got %q", cookie.Name)
 	}
 
 	if cookie.Value != "" {

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/caravan-nomad/caravan/backend/pkg/logger"
 )
 
 // embeddedSpaHandler serves the static files embedded in the binary.
@@ -50,7 +50,7 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		isServingIndex = path == h.indexPath || path == "/"+h.indexPath || path == "/"+h.indexPath+"/"
 	}
 
-	// if we're serving the index.html file and have a baseURL, replace the headlampBaseUrl with the baseURL
+	// if we're serving the index.html file and have a baseURL, replace the caravanBaseUrl with the baseURL
 	if h.baseURL != "" && isServingIndex {
 		// Replace the __baseUrl__ assignment to use the baseURL instead of './'
 		oldPattern := "__baseUrl__ = './<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');"

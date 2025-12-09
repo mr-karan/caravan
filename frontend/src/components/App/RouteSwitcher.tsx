@@ -1,27 +1,7 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-import { useQuery } from '@tanstack/react-query';
 import React, { Suspense } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { Redirect, Route, RouteProps, Switch, useHistory } from 'react-router-dom';
-import { getCluster, getSelectedClusters } from '../../lib/cluster';
-import { useCluster, useClustersConf } from '../../lib/k8s';
-import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { getCluster } from '../../lib/cluster';
 import { NotFoundRoute } from '../../lib/router';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
@@ -35,65 +15,72 @@ import ErrorComponent from '../common/ErrorPage';
 import { useSidebarItem } from '../Sidebar';
 
 export default function RouteSwitcher(props: { requiresToken: () => boolean }) {
-  // The NotFoundRoute always has to be evaluated in the last place.
   const routes = useTypedSelector(state => state.routes.routes);
   const routeFilters = useTypedSelector(state => state.routes.routeFilters);
   const defaultRoutes = Object.values(getDefaultRoutes()).concat(NotFoundRoute);
-  const clusters = useClustersConf();
+  // Don't default to {} here - we need to distinguish null (not loaded) from {} (loaded but empty)
+  const clusters = useTypedSelector(state => state.config.clusters);
+
   const filteredRoutes = Object.values(routes)
     .concat(defaultRoutes)
-    .filter(
-      route =>
-        !(
-          routeFilters.length > 0 &&
-          routeFilters.filter(f => f(route)).length !== routeFilters.length
-        ) && !route.disabled
-    );
+    .filter((route: RouteType) => {
+      if (route.disabled) return false;
+      if (routeFilters.length === 0) return true;
+      // Apply all route filters - route passes if no filter returns null
+      return routeFilters.every((filterFunc: (r: RouteType) => RouteType | null) => {
+        return filterFunc(route) !== null;
+      });
+    });
 
   return (
     <Suspense fallback={null}>
-      <Switch>
-        {filteredRoutes.map((route, index) =>
+      <Routes>
+        {filteredRoutes.map((route: RouteType, index: number) =>
           route.name === 'OidcAuth' ? (
             <Route
               path={route.path}
-              component={() => <RouteComponent route={route} />}
+              element={<RouteComponent route={route} />}
               key={index}
             />
           ) : (
-            <AuthRoute
+            <Route
               path={getRoutePath(route)}
-              sidebar={route.sidebar}
-              requiresAuth={!route.noAuthRequired}
-              requiresCluster={getRouteUseClusterURL(route)}
-              exact={!!route.exact}
-              clusters={clusters}
-              requiresToken={props.requiresToken}
-              children={<RouteComponent route={route} key={getCluster()} />}
-              key={`${getCluster()}`}
+              element={
+                <AuthRoute
+                  sidebar={route.sidebar}
+                  requiresAuth={!route.noAuthRequired}
+                  requiresCluster={getRouteUseClusterURL(route)}
+                  clusters={clusters}
+                  requiresToken={props.requiresToken}
+                >
+                  <RouteComponent route={route} key={getCluster()} />
+                </AuthRoute>
+              }
+              key={`${getCluster()}-${index}`}
             />
           )
         )}
-      </Switch>
+      </Routes>
     </Suspense>
   );
 }
 
 function RouteErrorBoundary(props: { error: Error; route: RouteType }) {
   const { error, route } = props;
-  const { t } = useTranslation();
+
   return (
     <ErrorComponent
-      title={t('Uh-oh! Something went wrong.')}
+      title="Uh-oh! Something went wrong."
       error={error}
-      message={t('translation|Error loading {{ routeName }}', { routeName: route.name })}
+      message={`Error loading ${route.name}`}
     />
   );
 }
 
 function RouteComponent({ route }: { route: RouteType }) {
-  const { t } = useTranslation();
+  
   const dispatch = useDispatch();
+
   React.useEffect(() => {
     dispatch(uiSlice.actions.setHideAppBar(route.hideAppBar));
   }, [route.hideAppBar]);
@@ -104,13 +91,13 @@ function RouteComponent({ route }: { route: RouteType }) {
 
   return (
     <PageTitle
-      title={t(
+      title={
         route.name
           ? route.name
           : typeof route.sidebar === 'string'
           ? route.sidebar
           : route.sidebar?.item || ''
-      )}
+      }
     >
       <ErrorBoundary
         fallback={(props: { error: Error }) => (
@@ -143,7 +130,7 @@ interface AuthRouteProps {
   requiresAuth: boolean;
   requiresCluster: boolean;
   requiresToken: () => boolean;
-  [otherProps: string]: any;
+  clusters?: Record<string, any> | null;
 }
 
 function AuthRoute(props: AuthRouteProps) {
@@ -152,69 +139,59 @@ function AuthRoute(props: AuthRouteProps) {
     sidebar,
     requiresAuth = true,
     requiresCluster = true,
-    computedMatch = {},
-    ...other
+    clusters,
   } = props;
-  const redirectRoute = getCluster() ? 'login' : 'chooser';
-  useSidebarItem(sidebar, computedMatch);
-  const cluster = useCluster();
-  const query = useQuery({
-    queryKey: ['auth', cluster],
-    queryFn: () => testAuth(cluster!),
-    enabled: !!cluster && requiresAuth,
-    retry: 0,
-  });
 
-  function getRenderer({ location }: RouteProps) {
-    if (!requiresAuth) {
-      return children;
-    }
+  const location = useLocation();
+  const params = useParams();
+  const redirectRoute = getCluster() ? 'token' : 'chooser';
+  useSidebarItem(sidebar, params);
 
-    if (requiresCluster) {
-      if (getSelectedClusters().length > 1) {
-        // In multi-cluster mode, we do not know if one of them requires a token.
-        return children;
-      }
-    }
-
-    if (query.isSuccess) {
-      return children;
-    }
-
-    if (query.isError) {
-      return (
-        <Redirect
-          to={{
-            pathname: createRouteURL(redirectRoute),
-            state: { from: location },
-          }}
-        />
-      );
-    }
-
-    return null;
+  if (!requiresAuth) {
+    return <>{children}</>;
   }
 
-  // If no auth is required for the view, or the token is set up, then
-  // render the assigned component. Otherwise redirect to the login route.
-  return <Route {...other} render={getRenderer} />;
+  // For Nomad, we simplify auth - just check if cluster exists
+  const cluster = getCluster();
+  if (requiresCluster && cluster) {
+    // If clusters hasn't loaded yet (null), don't redirect - wait for config to load
+    // This prevents redirecting to home on initial page load before config is fetched
+    if (clusters === null || clusters === undefined) {
+      return <>{children}</>;
+    }
+    if (clusters[cluster]) {
+      return <>{children}</>;
+    }
+    return (
+      <Navigate
+        to={createRouteURL(redirectRoute)}
+        state={{ from: location }}
+        replace
+      />
+    );
+  }
+
+  return <>{children}</>;
 }
 
 const PreviousRouteContext = React.createContext<number>(0);
 
 export function PreviousRouteProvider({ children }: React.PropsWithChildren<{}>) {
-  const history = useHistory();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [locationInfo, setLocationInfo] = React.useState<number>(0);
+  const prevLocationRef = React.useRef(location.key);
 
   React.useEffect(() => {
-    history.listen((location, action) => {
-      if (action === 'PUSH') {
-        setLocationInfo(levels => levels + 1);
-      } else if (action === 'POP') {
-        setLocationInfo(levels => levels - 1);
-      }
-    });
-  }, []);
+    // Track navigation by comparing location keys
+    // This is a simplified approach since React Router v6+ doesn't expose action type directly
+    if (location.key !== prevLocationRef.current) {
+      // We can't easily distinguish PUSH from POP in v6+, so we just track that navigation happened
+      // For a more accurate implementation, you'd need to use a custom history listener
+      setLocationInfo(levels => levels + 1);
+      prevLocationRef.current = location.key;
+    }
+  }, [location]);
 
   return (
     <PreviousRouteContext.Provider value={locationInfo}>{children}</PreviousRouteContext.Provider>

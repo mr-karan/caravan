@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Headlamp Backstage Integration</title>
+    <title>Caravan Backstage Integration</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -100,8 +100,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Headlamp Backstage Integration</h1>
-            <p>Share your Backstage authentication token and kubeconfig with the Headlamp application.</p>
+            <h1>Caravan Backstage Integration</h1>
+            <p>Share your Backstage authentication token and kubeconfig with the Caravan application.</p>
         </div>
 
         <div class="controls">
@@ -125,18 +125,18 @@
         </div>
 
         <div class="iframe-container">
-            <h3>Headlamp Application</h3>
+            <h3>Caravan Application</h3>
             <iframe 
-                id="headlampIframe" 
-                src="http://localhost:4466/api/headlamp/"
-                title="Headlamp Application">
+                id="caravanIframe" 
+                src="http://localhost:4466/"
+                title="Caravan Application">
             </iframe>
         </div>
     </div>
 
     <script>
-        const iframeRef = document.getElementById('headlampIframe');
-        const targetOrigin = 'http://localhost:4466/api/headlamp';
+        const iframeRef = document.getElementById('caravanIframe');
+        const targetOrigin = 'http://localhost:4466';
 
         function showStatus(message, isSuccess = true) {
             const statusDiv = document.getElementById('status');
@@ -211,11 +211,11 @@
 
         // Check if iframe is loaded
         iframeRef.addEventListener('load', function() {
-            console.log('Headlamp iframe loaded successfully');
+            console.log('Caravan iframe loaded successfully');
         });
 
         iframeRef.addEventListener('error', function() {
-            showStatus('Error loading Headlamp iframe. Please check if the service is running on localhost:4466', false);
+            showStatus('Error loading Caravan iframe. Please check if the service is running on localhost:4466', false);
         });
     </script>
 </body>

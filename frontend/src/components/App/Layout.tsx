@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 The Kubernetes Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { Typography } from '@mui/material';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -21,28 +5,29 @@ import Container from '@mui/material/Container';
 import CssBaseline from '@mui/material/CssBaseline';
 import Link from '@mui/material/Link';
 import { styled } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { Dispatch, UnknownAction } from '@reduxjs/toolkit';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useEffect, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
-import { getSelectedClusters } from '../../lib/cluster';
-import { useClustersConf } from '../../lib/k8s';
-import { request } from '../../lib/k8s/api/v1/clusterRequests';
-import { Cluster } from '../../lib/k8s/cluster';
+import { restoreClustersToBackend, hasClusterToken } from '../../lib/clusterStorage';
+import { getLastCluster, addToRecentClusters, setLastCluster } from '../../lib/clusterPreferences';
+import { createRouteURL } from '../../lib/router/createRouteURL';
+import useClusterViewState from '../../lib/useClusterViewState';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
-import { fetchStatelessClusterKubeConfigs, isEqualClusterConfigs } from '../../stateless/';
-import { ActivitiesRenderer } from '../activity/Activity';
 import { ErrorPage, Loader } from '../common';
 import ActionsNotifier from '../common/ActionsNotifier';
 import AlertNotification from '../common/AlertNotification';
-import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
+import ClusterErrorHandler from './ClusterErrorHandler';
+import ClusterRail from './ClusterRail';
+import { useClusterSwitchTransition } from './ClusterSwitchTransition';
 import RouteSwitcher from './RouteSwitcher';
 import TopBar from './TopBar';
 import VersionDialog from './VersionDialog';
@@ -53,7 +38,7 @@ const CLUSTER_FETCH_INTERVAL = 10 * 1000; // ms
 
 function ClusterNotFoundPopup({ cluster }: { cluster?: string }) {
   const problemCluster = cluster || getCluster();
-  const { t } = useTranslation();
+  
 
   return (
     <Box
@@ -71,10 +56,10 @@ function ClusterNotFoundPopup({ cluster }: { cluster?: string }) {
       alignItems="center"
     >
       <Box p={0.5}>
-        {t(`Something went wrong with cluster {{ cluster }}`, { cluster: problemCluster })}
+        Something went wrong with cluster {problemCluster}
       </Box>
-      <Button variant="contained" size="small" href={window.desktopApi ? '#' : '/'}>
-        {t('Choose another cluster')}
+      <Button variant="contained" size="small" href="/">
+        Choose another cluster
       </Button>
     </Box>
   );
@@ -82,118 +67,133 @@ function ClusterNotFoundPopup({ cluster }: { cluster?: string }) {
 const Div = styled('div')``;
 const Main = styled('main')``;
 
-/**
- * Merges the new cluster with the current cluster.
- * Stateless clusters are merged with the current cluster.
- * It also preserves the useToken property.
- * @param newConfig - The new cluster config.
- * @param currentClusters - The current cluster config.
- * @param statelessClusters - The stateless cluster config.
- * @returns The merged cluster config.
- */
-function mergeClusterConfigs(
-  newClusters: Record<string, any>,
-  currentClusters: Record<string, any>,
-  statelessClusters: Record<string, any> | null
-): Record<string, any> {
-  const mergedClusters = { ...newClusters };
-
-  // Merge stateless clusters
-  if (statelessClusters) {
-    Object.entries(statelessClusters).forEach(([key, cluster]) => {
-      if (!mergedClusters[key]) {
-        mergedClusters[key] = cluster;
-      }
-    });
-  }
-
-  // Preserve useToken property
-  Object.entries(mergedClusters).forEach(([key, cluster]) => {
-    if (currentClusters[key]?.useToken !== undefined) {
-      mergedClusters[key] = {
-        ...cluster,
-        useToken: currentClusters[key].useToken,
-      };
-    }
-  });
-
-  return mergedClusters;
-}
-
 declare global {
   interface Window {
     clusterConfigFetchHandler: number;
   }
 }
 
-/**
- * Fetches the cluster config from the backend and updates the redux store
- * if the present stored config is different from the fetched one.
- */
-const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
-  const clusters = store.getState().config.clusters;
-  const statelessClusters = store.getState().config.statelessClusters;
+// Track if we've already restored clusters from localStorage
+let clustersRestored = false;
+// Promise that resolves when clusters are restored (for components to await)
+let clustersRestoredPromise: Promise<void> | null = null;
 
-  return request('/config', {}, false, false).then(config => {
+/**
+ * Wait for clusters to be restored from localStorage.
+ * Can be called from any component that needs to wait for cluster restoration.
+ */
+export async function waitForClustersRestored(): Promise<void> {
+  if (clustersRestored) return;
+  if (clustersRestoredPromise) {
+    await clustersRestoredPromise;
+  }
+}
+
+/**
+ * Fetches the cluster config from the backend and updates the redux store.
+ * On first load, restores clusters from localStorage to the backend.
+ */
+const fetchConfig = async (dispatch: Dispatch<UnknownAction>) => {
+  const clusters = store.getState().config.clusters;
+
+  try {
+    // On first load, restore clusters from localStorage to backend
+    if (!clustersRestored) {
+      // Create a promise that other components can await
+      clustersRestoredPromise = (async () => {
+        await restoreClustersToBackend();
+        clustersRestored = true;
+      })();
+      await clustersRestoredPromise;
+    }
+
+    const response = await fetch('/config');
+    const config = await response.json();
+
     const clustersToConfig: ConfigState['clusters'] = {};
-    config?.clusters.forEach((cluster: Cluster) => {
-      if (cluster.meta_data?.extensions?.headlamp_info?.customName) {
-        cluster.name = cluster.meta_data?.extensions?.headlamp_info?.customName;
-      }
-      clustersToConfig[cluster.name] = cluster;
-    });
+    if (config?.clusters) {
+      config.clusters.forEach((cluster: { name: string; server?: string }) => {
+        clustersToConfig[cluster.name] = {
+          name: cluster.name,
+          server: cluster.server || '',
+        };
+      });
+    }
 
     const configToStore = { ...config, clusters: clustersToConfig };
 
     if (clusters === null) {
       dispatch(setConfig(configToStore));
     } else {
-      // Check if the config is different
-      const configDifferent = isEqualClusterConfigs(clusters, clustersToConfig);
-
-      if (configDifferent) {
-        // Merge the new config with the current config
-        const mergedClusters = mergeClusterConfigs(
-          configToStore.clusters,
-          clusters,
-          statelessClusters
-        );
-        dispatch(
-          setConfig({
-            ...configToStore,
-            clusters: mergedClusters,
-          })
-        );
-      }
-    }
-
-    /**
-     * Fetches the stateless cluster config from the indexDB and then sends the backend to parse it
-     * only if the stateless cluster config is enabled in the backend.
-     */
-    if (config?.isDynamicClusterEnabled) {
-      fetchStatelessClusterKubeConfigs(dispatch);
+      dispatch(setConfig(configToStore));
     }
 
     return configToStore;
-  });
+  } catch (error) {
+    console.error('Failed to fetch config:', error);
+    // Return empty config on error
+    return { clusters: {} };
+  }
 };
 
 const disableBackendLoader = true;
 
 export default function Layout({}: LayoutProps) {
-  const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
   const clusters = useTypedSelector(state => state.config.clusters);
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
-  const { t } = useTranslation();
-  const allClusters = useClustersConf();
+  const [ready, setReady] = useState(clustersRestored);
+  const isSmallScreen = useMediaQuery('(max-width:600px)');
+  const [hasAutoSelectedCluster, setHasAutoSelectedCluster] = useState(false);
 
-  /** This fetches the cluster config from the backend and updates the redux store on an interval.
-   * When stateless clusters are enabled, it also fetches the stateless cluster config from the
-   * indexDB and then sends the backend to parse it and then updates the parsed value into redux
-   * store on an interval.
-   * */
+  // Cluster switch transition
+  const { TransitionOverlay } = useClusterSwitchTransition();
+
+  // Determine if we should show the cluster rail (multiple clusters, not on small screens)
+  const clusterCount = clusters ? Object.keys(clusters).length : 0;
+  const showClusterRail = clusterCount > 1 && !isSmallScreen;
+  
+  // Track current cluster for activity logging
+  const currentCluster = getCluster();
+  const prevClusterRef = useRef<string | null>(null);
+
+  // Log cluster activity when switching
+  useEffect(() => {
+    if (currentCluster && currentCluster !== prevClusterRef.current) {
+      addToRecentClusters(currentCluster);
+      setLastCluster(currentCluster);
+      prevClusterRef.current = currentCluster;
+    }
+  }, [currentCluster]);
+
+  // Per-cluster view state persistence (namespace filters, etc.)
+  useClusterViewState({ autoSave: true });
+
+  // Auto-select last used cluster on app start
+  useEffect(() => {
+    if (hasAutoSelectedCluster || !ready || !clusters) return;
+    
+    // Only auto-select if we're on the home/clusters page
+    if (location.pathname !== '/' && location.pathname !== '/clusters') return;
+    
+    const lastCluster = getLastCluster();
+    if (lastCluster && clusters[lastCluster]) {
+      setHasAutoSelectedCluster(true);
+      
+      // Check if we have a valid token for this cluster
+      if (hasClusterToken(lastCluster)) {
+        // Small delay to let the UI settle
+        setTimeout(() => {
+          navigate(createRouteURL('nomadCluster', { cluster: lastCluster }));
+        }, 100);
+      }
+    } else {
+      setHasAutoSelectedCluster(true);
+    }
+  }, [ready, clusters, location.pathname, navigate, hasAutoSelectedCluster]);
+
   const {
     data: config,
     isLoading,
@@ -203,30 +203,63 @@ export default function Layout({}: LayoutProps) {
     queryFn: () => fetchConfig(dispatch),
     refetchInterval: disableBackendLoader
       ? CLUSTER_FETCH_INTERVAL
-      : query => (query.state.status === 'error' ? false : CLUSTER_FETCH_INTERVAL),
+      : (query: any) => (query.state.status === 'error' ? false : CLUSTER_FETCH_INTERVAL),
   });
 
+  // Mark ready once clusters are restored
+  useEffect(() => {
+    if (clustersRestored) {
+      setReady(true);
+    } else if (clustersRestoredPromise) {
+      clustersRestoredPromise.then(() => setReady(true));
+    }
+  }, [config]);
+
   // Remove splash screen styles from the body
-  // that are added in frontend/index.html
   useEffect(() => {
     document.body.removeAttribute('style');
   }, []);
 
-  const urlClusters = getSelectedClusters();
-  const clustersNotInURL =
-    allClusters && urlClusters.length !== 0
-      ? urlClusters.filter(clusterName => !Object.keys(allClusters).includes(clusterName))
-      : [];
   const containerProps = isFullWidth
     ? ({ maxWidth: false, disableGutters: true } as const)
     : ({ maxWidth: 'xl' } as const);
-  const MAXIMUM_NUM_ALERTS = 2;
 
   const panels = useUIPanelsGroupedBySide();
 
+  // Show loader while clusters are being restored
+  if (!ready) {
+    return (
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100dvw',
+          height: '100dvh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 2,
+          animation: 'loader-appear',
+          animationFillMode: 'both',
+          animationDelay: '0.5s',
+          animationDuration: '0.3s',
+
+          '@keyframes loader-appear': {
+            from: { opacity: 0 },
+            to: { opacity: 1 },
+          },
+        }}
+      >
+        <Loader title="Loading clusters..." />
+        <Typography>Restoring clusters...</Typography>
+      </Box>
+    );
+  }
+
   if (!disableBackendLoader) {
     if (error && !config) {
-      return <ErrorPage message={<Trans>Failed to connect to the backend</Trans>} error={error} />;
+      return <ErrorPage message="Failed to connect to the backend" error={error} />;
     }
 
     if (isLoading) {
@@ -253,8 +286,8 @@ export default function Layout({}: LayoutProps) {
             },
           }}
         >
-          <Loader title={t('Connecting to backend...')} />
-          <Typography>{t('Connecting to backend...')}</Typography>
+          <Loader title="Connecting to backend..." />
+          <Typography>Connecting to backend...</Typography>
         </Box>
       );
     }
@@ -276,13 +309,16 @@ export default function Layout({}: LayoutProps) {
           width: '1px',
         }}
       >
-        {t('Skip to main content')}
+        Skip to main content
       </Link>
       <VersionDialog />
       <CssBaseline enableColorScheme />
       <ActionsNotifier />
+      <TransitionOverlay />
       <Box sx={{ display: 'flex', height: '100dvh' }}>
-        {panels.left.map(it => (
+        {/* Slack-like cluster rail on the far left */}
+        {showClusterRail && <ClusterRail />}
+        {panels.left.map((it: any) => (
           <it.component key={it.id} />
         ))}
         <Box
@@ -293,10 +329,11 @@ export default function Layout({}: LayoutProps) {
             flexGrow: 1,
           }}
         >
-          {panels.top.map(it => (
+          {panels.top.map((it: any) => (
             <it.component key={it.id} />
           ))}
           <TopBar />
+          <ClusterErrorHandler />
           <Box
             sx={{
               display: 'grid',
@@ -318,34 +355,27 @@ export default function Layout({}: LayoutProps) {
                 gridRow: '1 / 2',
               }}
             >
-              {clustersNotInURL.slice(0, MAXIMUM_NUM_ALERTS).map(clusterName => (
-                <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
-              ))}
               <AlertNotification />
               <Box sx={{ height: '100%' }}>
                 <Div />
                 <Container {...containerProps} sx={{ height: '100%' }}>
                   <NavigationTabs />
-                  {arePluginsLoaded && (
-                    <RouteSwitcher
-                      requiresToken={() => {
-                        const clusterName = getCluster() || '';
-                        const cluster = clusters ? clusters[clusterName] : undefined;
-                        return cluster?.useToken === undefined || cluster?.useToken;
-                      }}
-                    />
-                  )}
+                  <RouteSwitcher
+                    requiresToken={() => {
+                      const clusterName = getCluster() || '';
+                      const cluster = clusters ? clusters[clusterName] : undefined;
+                      return (cluster as any)?.useToken === undefined || (cluster as any)?.useToken;
+                    }}
+                  />
                 </Container>
               </Box>
             </Main>
-            <ActivitiesRenderer />
-            <DetailsDrawer />
           </Box>
-          {panels.bottom.map(it => (
+          {panels.bottom.map((it: any) => (
             <it.component key={it.id} />
           ))}
         </Box>
-        {panels.right.map(it => (
+        {panels.right.map((it: any) => (
           <it.component key={it.id} />
         ))}
       </Box>

@@ -1,19 +1,3 @@
-/*
-Copyright 2025 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package auth
 
 import (
@@ -30,13 +14,14 @@ const (
 )
 
 // GetCookiePath returns the full cookie path including baseURL.
+// The path must end with "/" to ensure browser sends cookie for all sub-paths.
 func GetCookiePath(baseURL, cluster string) string {
 	if baseURL != "" {
 		baseURL = "/" + strings.Trim(baseURL, "/")
-		return baseURL + "/clusters/" + cluster
+		return baseURL + "/api/clusters/" + cluster + "/"
 	}
 
-	return "/clusters/" + cluster
+	return "/api/clusters/" + cluster + "/"
 }
 
 // SanitizeClusterName ensures cluster names are safe for use in cookie names.
@@ -94,12 +79,19 @@ func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, base
 	// if token is larger than maxCookieSize, split it into multiple cookies
 	chunks := splitToken(token, chunkSize)
 	for i, chunk := range chunks {
+		// Use SameSiteLaxMode for development (cross-origin between localhost:3000 and localhost:4466)
+		// In production with HTTPS, we can use SameSiteStrictMode
+		sameSite := http.SameSiteLaxMode
+		if secure {
+			sameSite = http.SameSiteStrictMode
+		}
+
 		cookie := &http.Cookie{
-			Name:     fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i),
+			Name:     fmt.Sprintf("caravan-auth-%s.%d", sanitizedCluster, i),
 			Value:    chunk,
 			HttpOnly: true,
 			Secure:   secure,
-			SameSite: http.SameSiteStrictMode,
+			SameSite: sameSite,
 			Path:     GetCookiePath(baseURL, cluster),
 			MaxAge:   86400, // 24 hours
 		}
@@ -119,7 +111,7 @@ func GetTokenFromCookie(r *http.Request, cluster string) (string, error) {
 	var token strings.Builder
 
 	for i := 0; ; i++ {
-		cookie, err := r.Cookie(fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i))
+		cookie, err := r.Cookie(fmt.Sprintf("caravan-auth-%s.%d", sanitizedCluster, i))
 		if err != nil {
 			break
 		}
@@ -145,7 +137,7 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 
 	// clear chunked cookies
 	for i := 0; ; i++ {
-		cookieName := fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i)
+		cookieName := fmt.Sprintf("caravan-auth-%s.%d", sanitizedCluster, i)
 
 		_, err := r.Cookie(cookieName)
 		if err != nil {
@@ -153,12 +145,18 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 			break
 		}
 
+		// Use SameSiteLaxMode for development
+		sameSite := http.SameSiteLaxMode
+		if secure {
+			sameSite = http.SameSiteStrictMode
+		}
+
 		cookie := &http.Cookie{
 			Name:     cookieName,
 			Value:    "",
 			HttpOnly: true,
 			Secure:   secure,
-			SameSite: http.SameSiteStrictMode,
+			SameSite: sameSite,
 			Path:     GetCookiePath(baseURL, cluster),
 			MaxAge:   -1,
 		}
