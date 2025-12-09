@@ -276,7 +276,7 @@ function AddClusterDialog({
         // If token provided, validate it via login endpoint
         if (formData.token.trim()) {
           const loginResponse = await fetch(
-            `/api/clusters/${encodeURIComponent(formData.name)}/auth/login`,
+            `/api/clusters/${encodeURIComponent(formData.name)}/v1/auth/login`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

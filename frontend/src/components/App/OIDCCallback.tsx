@@ -98,7 +98,7 @@ export default function OIDCCallback() {
         // Now we need to use this token to log in
         // Call our backend login endpoint to set the HTTPOnly cookie
         const loginResponse = await fetch(
-          `/api/clusters/${encodeURIComponent(cluster)}/auth/login`,
+          `/api/clusters/${encodeURIComponent(cluster)}/v1/auth/login`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
