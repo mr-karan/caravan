@@ -7,6 +7,7 @@ import {
   clearOIDCPendingAuth,
   completeOIDCAuth,
 } from '../../lib/nomad/api/oidc';
+import { saveClusterToken } from '../../lib/clusterStorage';
 
 type CallbackStatus = 'processing' | 'success' | 'error';
 
@@ -111,6 +112,10 @@ export default function OIDCCallback() {
           const errBody = await loginResponse.json().catch(() => ({}));
           throw new Error(errBody.error || 'Failed to complete login');
         }
+
+        // Mark the cluster as authenticated in localStorage
+        // The actual token is stored as HTTPOnly cookie by the backend
+        saveClusterToken(cluster, true);
 
         setState({
           status: 'success',
