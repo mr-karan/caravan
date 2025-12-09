@@ -25,6 +25,10 @@ dev: build-backend
     just run-frontend &
     wait
 
+# Run the embedded binary (builds with embedded frontend)
+run: build-embed
+    cd backend && ./caravan
+
 # Run the Go backend server (builds first)
 run-backend: build-backend
     cd backend && ./caravan
