@@ -177,7 +177,7 @@ export default function NavigationTabs() {
 
   const tabSecondLevelChangeHandler = useCallback(
     (index: number) => {
-      if (!secondLevelTabRoutes) {
+      if (!secondLevelSidebarItems || secondLevelSidebarItems.length === 0) {
         return;
       }
       const url = secondLevelSidebarItems[index].url;
@@ -198,7 +198,7 @@ export default function NavigationTabs() {
         }
       }
     },
-    [secondLevelSidebarItems, navigate, currentCluster, secondLevelTabRoutes]
+    [secondLevelSidebarItems, navigate, currentCluster]
   );
 
   // Always show the navigation tabs when the sidebar is the small version
