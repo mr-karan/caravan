@@ -212,4 +212,3 @@ type fieldError struct {
 func (e *fieldError) Error() string {
 	return "missing required field: " + e.field
 }
-

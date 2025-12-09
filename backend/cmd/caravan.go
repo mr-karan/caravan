@@ -408,10 +408,12 @@ func createCaravanHandler(config *CaravanConfig) http.Handler {
 	mux.Handle("GET /metrics", telemetry.MetricsHandler())
 
 	// Serve static files (SPA) - this is a catch-all, so it must be registered last
+	// In Go 1.22+, "/" only matches exact root path. Use "/{path...}" for catch-all.
 	if config.StaticDir != "" {
 		logger.Log(logger.LevelInfo, nil, nil, "Serving static files from: "+config.StaticDir)
 		spaHandler := spa.GetHandler(config.BaseURL, config.StaticDir)
-		mux.Handle("/", spaHandler)
+		mux.Handle("/{path...}", spaHandler)
+		mux.Handle("/", spaHandler) // Also handle exact root
 	}
 
 	// CORS handling using rs/cors - cleaner API
