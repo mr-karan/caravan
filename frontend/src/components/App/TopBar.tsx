@@ -29,43 +29,9 @@ import { SettingsButton } from '../App/Settings';
 import ErrorBoundary from '../common/ErrorBoundary';
 import CaravanButton from '../Sidebar/CaravanButton';
 import { setWhetherSidebarOpen } from '../Sidebar/sidebarSlice';
-import { alpha, Chip } from '@mui/material';
 import { AppLogo } from './AppLogo';
 import ClusterSwitcher from './ClusterSwitcher';
 import GlobalSearch from './GlobalSearch';
-import ClusterAvatar from '../common/ClusterAvatar';
-
-/**
- * Simple cluster indicator shown when the cluster rail is visible.
- * Just displays the current cluster name without dropdown functionality.
- */
-function ClusterIndicator({ clusterName }: { clusterName: string }) {
-  const theme = useTheme();
-  
-  return (
-    <Chip
-      avatar={<ClusterAvatar name={clusterName} size={24} />}
-      label={clusterName}
-      variant="outlined"
-      sx={{
-        height: 32,
-        borderRadius: 2,
-        backgroundColor: alpha(theme.palette.primary.main, 0.04),
-        borderColor: theme.palette.divider,
-        '& .MuiChip-avatar': {
-          width: 24,
-          height: 24,
-          ml: 0.5,
-        },
-        '& .MuiChip-label': {
-          fontWeight: 500,
-          fontSize: '0.8125rem',
-          px: 1,
-        },
-      }}
-    />
-  );
-}
 
 export interface TopBarProps {}
 
@@ -94,20 +60,12 @@ export function processAppBarActions(
 export default function TopBar({}: TopBarProps) {
   const dispatch = useDispatch();
   const isMedium = useMediaQuery('(max-width:960px)');
-  const isSmallScreen = useMediaQuery('(max-width:600px)');
 
   const isSidebarOpen = useTypedSelector(state => state.sidebar.isSidebarOpen);
   const isSidebarOpenUserSelected = useTypedSelector(
     state => state.sidebar.isSidebarOpenUserSelected
   );
   const hideAppBar = useTypedSelector(state => state.ui.hideAppBar);
-  const clusters = useTypedSelector(state => state.config.clusters) || {};
-  
-  // Check if cluster rail is visible (same logic as Layout)
-  const clusterCount = Object.keys(clusters).length;
-  const isClusterRailVisible = clusterCount > 1 && !isSmallScreen;
-
-  const cluster = getCluster();
   const navigate = useNavigate();
   const { appBarActions, appBarActionsProcessors } = useAppBarActionsProcessed();
 
@@ -131,9 +89,6 @@ export default function TopBar({}: TopBarProps) {
       isSidebarOpen={isSidebarOpen}
       isSidebarOpenUserSelected={isSidebarOpenUserSelected}
       onToggleOpen={handletoggleOpen}
-      cluster={cluster || undefined}
-      clusters={clusters}
-      isClusterRailVisible={isClusterRailVisible}
     />
   );
 }
@@ -142,15 +97,9 @@ export interface PureTopBarProps {
   appBarActions: AppBarAction[];
   appBarActionsProcessors?: AppBarActionsProcessor[];
   logout: () => Promise<any> | void;
-  clusters?: {
-    [clusterName: string]: any;
-  };
-  cluster?: string;
   isSidebarOpen?: boolean;
   isSidebarOpenUserSelected?: boolean;
   onToggleOpen: () => void;
-  /** Whether the cluster rail is visible (hides cluster switcher dropdown) */
-  isClusterRailVisible?: boolean;
 }
 
 function AppBarActionsMenu({
@@ -221,27 +170,23 @@ export const PureTopBar = memo(
     appBarActions,
     appBarActionsProcessors = [],
     logout,
-    cluster,
-    clusters,
     isSidebarOpen,
     isSidebarOpenUserSelected,
     onToggleOpen,
-    isClusterRailVisible = false,
   }: PureTopBarProps) => {
-    
     const theme = useTheme();
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    
+    // Get current cluster from URL
+    const cluster = getCluster();
+    const isClusterContext = !!cluster;
 
     const openSideBar = !!(isSidebarOpenUserSelected === undefined ? false : isSidebarOpen);
 
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = React.useState<null | HTMLElement>(null);
-    const isClusterContext = !!cluster;
-    
-    // Don't show ClusterSwitcher dropdown when rail is visible (rail handles switching)
-    const showClusterSwitcher = isClusterContext && !isClusterRailVisible;
 
     const isMenuOpen = Boolean(anchorEl);
     const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
@@ -328,7 +273,7 @@ export const PureTopBar = memo(
     const allAppBarActionsMobile: AppBarAction[] = [
       {
         id: DefaultAppBarAction.CLUSTER,
-        action: showClusterSwitcher && <ClusterSwitcher />,
+        action: <ClusterSwitcher />,
       },
       ...appBarActions,
       {
@@ -378,9 +323,9 @@ export const PureTopBar = memo(
     const allAppBarActions: AppBarAction[] = [
       {
         id: DefaultAppBarAction.CLUSTER,
-        action: isClusterContext && (
-          showClusterSwitcher ? <ClusterSwitcher /> : <ClusterIndicator clusterName={cluster!} />
-        ),
+        // Always show ClusterSwitcher for navigation - even when rail is visible
+        // This provides a consistent way to switch clusters from the top bar
+        action: <ClusterSwitcher />,
       },
       ...appBarActions,
       {

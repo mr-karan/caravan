@@ -492,75 +492,49 @@ function ClusterRailItem({
               />
             }
           >
-            <Badge
-              overlap="circular"
-              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-              invisible={!health?.issueCount || health.issueCount === 0}
-              badgeContent={
-                <Box
-                  sx={{
-                    minWidth: 16,
-                    height: 16,
-                    borderRadius: 8,
-                    backgroundColor: theme.palette.error.main,
-                    color: 'white',
-                    fontSize: '0.65rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    px: 0.5,
-                    border: `2px solid ${theme.palette.background.paper}`,
-                  }}
-                >
-                  {health?.issueCount}
-                </Box>
-              }
-            >
-              {loading ? (
-                <Skeleton
-                  variant="circular"
-                  width={42}
-                  height={42}
-                  sx={{
-                    bgcolor:
-                      theme.palette.mode === 'dark'
-                        ? 'rgba(255,255,255,0.1)'
-                        : 'rgba(0,0,0,0.08)',
-                  }}
-                />
-              ) : emoji ? (
-                <Box
-                  sx={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: isActive ? 2 : '50%',
-                    backgroundColor: customColor || alpha(theme.palette.primary.main, 0.15),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '1.25rem',
-                    transition: 'all 0.2s ease',
-                    boxShadow: isActive ? theme.shadows[2] : 'none',
-                  }}
-                  className="cluster-avatar"
-                >
-                  {emoji}
-                </Box>
-              ) : (
-                <ClusterAvatar
-                  name={name}
-                  size={42}
-                  sx={{
-                    transition: 'border-radius 0.2s ease',
-                    borderRadius: isActive ? 2 : '50%',
-                    boxShadow: isActive ? theme.shadows[2] : 'none',
-                    ...(customColor && { bgcolor: customColor }),
-                  }}
-                  className="cluster-avatar"
-                />
-              )}
-            </Badge>
+            {loading ? (
+              <Skeleton
+                variant="circular"
+                width={42}
+                height={42}
+                sx={{
+                  bgcolor:
+                    theme.palette.mode === 'dark'
+                      ? 'rgba(255,255,255,0.1)'
+                      : 'rgba(0,0,0,0.08)',
+                }}
+              />
+            ) : emoji ? (
+              <Box
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: isActive ? 2 : '50%',
+                  backgroundColor: customColor || alpha(theme.palette.primary.main, 0.15),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.25rem',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isActive ? theme.shadows[2] : 'none',
+                }}
+                className="cluster-avatar"
+              >
+                {emoji}
+              </Box>
+            ) : (
+              <ClusterAvatar
+                name={name}
+                size={42}
+                sx={{
+                  transition: 'border-radius 0.2s ease',
+                  borderRadius: isActive ? 2 : '50%',
+                  boxShadow: isActive ? theme.shadows[2] : 'none',
+                  ...(customColor && { bgcolor: customColor }),
+                }}
+                className="cluster-avatar"
+              />
+            )}
           </Badge>
         </Box>
       </Tooltip>

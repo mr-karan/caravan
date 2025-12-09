@@ -101,11 +101,13 @@ export default function ClusterSwitcher() {
     }
   };
 
-  if (!currentCluster) {
+  // Don't show switcher if there are no clusters configured
+  if (clusterList.length === 0) {
     return null;
   }
 
-  const currentClusterInfo = clusters[currentCluster];
+  const currentClusterInfo = currentCluster ? clusters[currentCluster] : null;
+  const hasCurrentCluster = !!currentCluster;
 
   return (
     <>
@@ -140,51 +142,68 @@ export default function ClusterSwitcher() {
         aria-haspopup="true"
         aria-expanded={open}
       >
-        <ClusterAvatar
-          name={currentCluster}
-          size={24}
-          sx={{
-            transition: 'transform 0.2s ease',
-            transform: open ? 'scale(1.1)' : 'scale(1)',
-          }}
-        />
-        <Box sx={{ textAlign: 'left', maxWidth: 150 }}>
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              fontSize: '0.8125rem',
-              lineHeight: 1.2,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {currentCluster}
-          </Typography>
-          {currentClusterInfo?.server && (
-            <Typography
-              variant="caption"
+        {hasCurrentCluster ? (
+          <>
+            <ClusterAvatar
+              name={currentCluster}
+              size={24}
               sx={{
-                color: 'text.secondary',
-                fontSize: '0.6875rem',
-                lineHeight: 1,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                display: 'block',
+                transition: 'transform 0.2s ease',
+                transform: open ? 'scale(1.1)' : 'scale(1)',
+              }}
+            />
+            <Box sx={{ textAlign: 'left', maxWidth: 150 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: '0.8125rem',
+                  lineHeight: 1.2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {currentCluster}
+              </Typography>
+              {currentClusterInfo?.server && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'text.secondary',
+                    fontSize: '0.6875rem',
+                    lineHeight: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    display: 'block',
+                  }}
+                >
+                  {(() => {
+                    try {
+                      return new URL(currentClusterInfo.server).host;
+                    } catch {
+                      return currentClusterInfo.server;
+                    }
+                  })()}
+                </Typography>
+              )}
+            </Box>
+          </>
+        ) : (
+          <>
+            <Icon icon="mdi:server-network" width={20} />
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 500,
+                fontSize: '0.8125rem',
               }}
             >
-              {(() => {
-                try {
-                  return new URL(currentClusterInfo.server).host;
-                } catch {
-                  return currentClusterInfo.server;
-                }
-              })()}
+              Select Cluster
             </Typography>
-          )}
-        </Box>
+          </>
+        )}
         <Icon
           icon={open ? 'mdi:chevron-up' : 'mdi:unfold-more-horizontal'}
           width={16}

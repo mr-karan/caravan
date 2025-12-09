@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import { Icon } from '@iconify/react';
 import {
   Box,
+  Button,
   IconButton,
   Tooltip,
   Typography,
@@ -14,10 +16,6 @@ import {
   TableRow,
   Chip,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { SectionBox, Loader, ErrorPage } from '../../common';
 import { getVariable } from '../../../lib/nomad/api';
 import { Variable } from '../../../lib/nomad/types';
@@ -62,6 +60,25 @@ export default function VariableDetails() {
     });
   };
 
+  // Check if all keys are visible
+  const allKeys = useMemo(() => {
+    return variable?.Items ? Object.keys(variable.Items) : [];
+  }, [variable]);
+
+  const allVisible = useMemo(() => {
+    return allKeys.length > 0 && allKeys.every(key => visibleKeys.has(key));
+  }, [allKeys, visibleKeys]);
+
+  const toggleAllVisibility = () => {
+    if (allVisible) {
+      // Hide all
+      setVisibleKeys(new Set());
+    } else {
+      // Show all
+      setVisibleKeys(new Set(allKeys));
+    }
+  };
+
   const copyToClipboard = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -93,7 +110,7 @@ export default function VariableDetails() {
           actions: [
             <Tooltip key="refresh" title="Refresh">
               <IconButton onClick={loadVariable} size="small">
-                <RefreshIcon />
+                <Icon icon="mdi:refresh" width={20} />
               </IconButton>
             </Tooltip>,
           ],
@@ -151,7 +168,28 @@ export default function VariableDetails() {
         </Box>
       </SectionBox>
 
-      <SectionBox title="Items">
+      <SectionBox
+        title="Items"
+        headerProps={{
+          actions: itemCount > 0 ? [
+            <Button
+              key="toggle-all"
+              size="small"
+              variant="outlined"
+              onClick={toggleAllVisibility}
+              startIcon={
+                <Icon
+                  icon={allVisible ? 'mdi:eye-off-outline' : 'mdi:eye-outline'}
+                  width={18}
+                />
+              }
+              sx={{ textTransform: 'none' }}
+            >
+              {allVisible ? 'Hide All' : 'Reveal All'}
+            </Button>,
+          ] : [],
+        }}
+      >
         {itemCount === 0 ? (
           <Typography color="text.secondary">No items in this variable</Typography>
         ) : (
@@ -191,16 +229,15 @@ export default function VariableDetails() {
                       <Box display="flex" gap={0.5}>
                         <Tooltip title={visibleKeys.has(key) ? 'Hide' : 'Show'}>
                           <IconButton size="small" onClick={() => toggleVisibility(key)}>
-                            {visibleKeys.has(key) ? (
-                              <VisibilityOffIcon fontSize="small" />
-                            ) : (
-                              <VisibilityIcon fontSize="small" />
-                            )}
+                            <Icon
+                              icon={visibleKeys.has(key) ? 'mdi:eye-off-outline' : 'mdi:eye-outline'}
+                              width={18}
+                            />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Copy value">
                           <IconButton size="small" onClick={() => copyToClipboard(value)}>
-                            <ContentCopyIcon fontSize="small" />
+                            <Icon icon="mdi:content-copy" width={18} />
                           </IconButton>
                         </Tooltip>
                       </Box>

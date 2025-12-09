@@ -66,9 +66,9 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         hide: !shouldShowHomeItem,
       },
       {
-        name: 'cluster',
-        label: 'Cluster',
-        icon: 'mdi:hexagon-multiple-outline',
+        name: 'infra',
+        label: 'Infra',
+        icon: 'mdi:server-outline',
         subList: [
           {
             name: 'nomadNodes',
