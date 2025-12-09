@@ -12,6 +12,8 @@ export interface StoredCluster {
   region?: string;
   namespace?: string;
   token?: string;
+  /** Whether ACL is enabled on this cluster. If false, no token is required. */
+  aclEnabled?: boolean;
 }
 
 /**
@@ -74,11 +76,24 @@ export function getCluster(name: string): StoredCluster | undefined {
 }
 
 /**
- * Check if a cluster has a token stored
+ * Check if a cluster has a token stored OR if ACL is disabled (no token needed)
  */
 export function hasClusterToken(name: string): boolean {
   const cluster = getCluster(name);
+  // If ACL is explicitly disabled, no token is needed
+  if (cluster?.aclEnabled === false) {
+    return true;
+  }
   return !!(cluster?.token && cluster.token.trim().length > 0);
+}
+
+/**
+ * Check if ACL is enabled for a cluster (defaults to true if not specified)
+ */
+export function isAclEnabled(name: string): boolean {
+  const cluster = getCluster(name);
+  // Default to true (ACL enabled) if not specified
+  return cluster?.aclEnabled !== false;
 }
 
 /**

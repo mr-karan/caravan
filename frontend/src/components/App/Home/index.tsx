@@ -39,7 +39,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { hasClusterToken, removeCluster as removeStoredCluster, saveCluster } from '../../../lib/clusterStorage';
+import { hasClusterToken, isAclEnabled, removeCluster as removeStoredCluster, saveCluster } from '../../../lib/clusterStorage';
 import {
   listOIDCAuthMethods,
   startOIDCLogin,
@@ -65,8 +65,9 @@ interface AddClusterFormData {
   region: string;
   namespace: string;
   token: string;
-  authType: 'token' | 'oidc';
+  authType: 'token' | 'oidc' | 'none';
   oidcMethod?: string;
+  aclEnabled: boolean;
 }
 
 interface ClusterHealth {
@@ -173,6 +174,7 @@ function AddClusterDialog({
     token: '',
     authType: 'token',
     oidcMethod: '',
+    aclEnabled: true,
   });
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
@@ -260,6 +262,35 @@ function AddClusterDialog({
       }
       setLoading(false);
     } else if (activeStep === 1) {
+      // Skip to confirm if no authentication required
+      if (formData.authType === 'none') {
+        setLoading(true);
+        try {
+          // Just test connection without auth
+          const healthResponse = await fetch(
+            `/api/clusters/${encodeURIComponent(formData.name)}/v1/nodes`,
+            { credentials: 'include' }
+          );
+
+          if (healthResponse.ok) {
+            setTestResult('success');
+            setActiveStep(2);
+          } else if (healthResponse.status === 401 || healthResponse.status === 403) {
+            setTestResult('error');
+            setError('This cluster requires authentication. ACL is enabled.');
+          } else {
+            setTestResult('error');
+            const errorData = await healthResponse.json().catch(() => ({}));
+            setError(errorData.error || 'Could not connect to cluster. Please verify the address.');
+          }
+        } catch (err) {
+          setTestResult('error');
+          setError((err as Error).message);
+        }
+        setLoading(false);
+        return;
+      }
+
       // Skip to confirm if using OIDC (auth happens via popup)
       if (formData.authType === 'oidc') {
         if (oidcStatus === 'success') {
@@ -338,7 +369,7 @@ function AddClusterDialog({
   };
 
   const handleClose = () => {
-    setFormData({ name: '', address: '', region: '', namespace: '', token: '', authType: 'token', oidcMethod: '' });
+    setFormData({ name: '', address: '', region: '', namespace: '', token: '', authType: 'token', oidcMethod: '', aclEnabled: true });
     setError(null);
     setActiveStep(0);
     setTestResult(null);
@@ -497,8 +528,21 @@ function AddClusterDialog({
             <FormControl>
               <RadioGroup
                 value={formData.authType}
-                onChange={e => setFormData({ ...formData, authType: e.target.value as 'token' | 'oidc' })}
+                onChange={e => setFormData({ ...formData, authType: e.target.value as 'token' | 'oidc' | 'none', aclEnabled: e.target.value !== 'none' })}
               >
+                <FormControlLabel
+                  value="none"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">No Authentication</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Cluster has ACL disabled (e.g., nomad agent -dev)
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ mb: 1, alignItems: 'flex-start', '& .MuiRadio-root': { pt: 0.5 } }}
+                />
                 <FormControlLabel
                   value="token"
                   control={<Radio />}
@@ -622,6 +666,8 @@ function AddClusterDialog({
             <Alert severity="success" icon={<Icon icon="mdi:check-circle" />}>
               {formData.authType === 'oidc'
                 ? 'OIDC authentication successful! Ready to add cluster.'
+                : formData.authType === 'none'
+                ? 'Connection verified! No ACL required.'
                 : 'Connection verified! Ready to add cluster.'}
             </Alert>
 
@@ -644,9 +690,11 @@ function AddClusterDialog({
                 <Typography variant="body2">
                   {formData.authType === 'oidc'
                     ? `OIDC (${formData.oidcMethod})`
+                    : formData.authType === 'none'
+                    ? 'None (ACL disabled)'
                     : formData.token
-                    ? 'ACL Token configured'
-                    : 'No authentication'}
+                    ? 'ACL Token'
+                    : 'No token configured'}
                 </Typography>
               </Box>
             </Paper>
@@ -668,9 +716,9 @@ function AddClusterDialog({
           onClick={handleNext}
           variant="contained"
           disabled={loading || (activeStep === 1 && formData.authType === 'oidc' && oidcStatus !== 'success')}
-          startIcon={loading ? undefined : activeStep === 2 ? <Icon icon="mdi:check" /> : <Icon icon="mdi:arrow-right" />}
+          startIcon={loading ? <CircularProgress size={18} color="inherit" /> : activeStep === 2 ? <Icon icon="mdi:check" /> : <Icon icon="mdi:arrow-right" />}
         >
-          {loading ? 'Please wait...' : activeStep === 2 ? 'Add Cluster' : 'Next'}
+          {loading ? 'Connecting...' : activeStep === 2 ? 'Add Cluster' : 'Next'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -837,6 +885,7 @@ function ClusterCard({
   };
 
   const isLocal = server?.includes('localhost') || server?.includes('127.0.0.1');
+  const aclDisabled = !isAclEnabled(name);
 
   return (
     <Card
@@ -890,6 +939,9 @@ function ClusterCard({
               </Typography>
               {isLocal && (
                 <Chip size="small" label="Local" sx={{ height: 18, fontSize: '0.65rem' }} />
+              )}
+              {aclDisabled && (
+                <Chip size="small" label="No ACL" color="info" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
               )}
             </Box>
             <Typography
@@ -1199,8 +1251,11 @@ export default function Home() {
     // Already added during test, just save to localStorage
     // For OIDC auth, the token was already set to 'authenticated' by OIDCCallback
     // For token auth, use the provided token
+    // For no auth (ACL disabled), no token needed
     const tokenValue = data.authType === 'oidc' 
       ? 'authenticated'  // OIDC sets HTTPOnly cookie, mark as authenticated
+      : data.authType === 'none'
+      ? undefined  // No token needed for ACL-disabled clusters
       : (data.token || undefined);
     
     saveCluster({
@@ -1209,6 +1264,7 @@ export default function Home() {
       region: data.region || undefined,
       namespace: data.namespace || undefined,
       token: tokenValue,
+      aclEnabled: data.aclEnabled,
     });
 
     // Refresh config
