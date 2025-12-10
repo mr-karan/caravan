@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <defs>
+    <style>
+      .node-1 { fill: #00ca8e; }
+      .node-2 { fill: #00ca8e; opacity: 0.55; }
+      .node-3 { fill: #00ca8e; opacity: 0.28; }
+      .link { stroke: #00ca8e; stroke-width: 2; stroke-linecap: round; fill: none; }
+    </style>
+  </defs>
+
+  <title>Caravan</title>
+
+  <!-- Three connected rounded squares in diagonal formation -->
+  <!-- Suggests: distributed systems, journey, progression -->
+  
+  <!-- Connection paths first (behind nodes) -->
+  <path class="link" d="M32,48 L42,38" opacity="0.4"/>
+  <path class="link" d="M52,32 L58,26" opacity="0.25"/>
+  
+  <!-- Lead node - bottom left, largest -->
+  <rect class="node-1" x="10" y="42" width="24" height="24" rx="5"/>
+  
+  <!-- Middle node -->
+  <rect class="node-2" x="32" y="26" width="20" height="20" rx="4"/>
+  
+  <!-- Distant node - top right, smallest -->
+  <rect class="node-3" x="52" y="14" width="16" height="16" rx="3"/>
+  
+  <!-- Motion accent - small trailing dots -->
+  <circle cx="8" cy="68" r="2" fill="#00ca8e" opacity="0.2"/>
+  <circle cx="16" cy="72" r="1.5" fill="#00ca8e" opacity="0.12"/>
+
+</svg>
+

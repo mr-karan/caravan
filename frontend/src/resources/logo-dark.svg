@@ -1,22 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="180" height="40" viewBox="0 0 180 40">
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="40" viewBox="0 0 150 40">
   <defs>
     <style>
-      .nomad-1 { fill: #00ca8e; }
-      .nomad-2 { fill: #00ca8e; opacity: 0.65; }
-      .nomad-3 { fill: #00ca8e; opacity: 0.4; }
+      .node-1 { fill: #00ca8e; }
+      .node-2 { fill: #00ca8e; opacity: 0.55; }
+      .node-3 { fill: #00ca8e; opacity: 0.28; }
+      .link { stroke: #00ca8e; stroke-width: 0.8; stroke-linecap: round; fill: none; }
       .text { fill: #1a1a1a; font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif; font-weight: 600; font-size: 22px; letter-spacing: -0.02em; }
     </style>
-    <symbol id="nomad" viewBox="0 0 50 72">
-      <path d="M25,7.2L0,21.6v28.8l25,14.4,25-14.4v-28.9L25,7.2ZM36.1,38.8l-6.7,3.8-8-4.4v9.2l-7.6,4.8v-19.2l6-3.7,8.3,4.4v-9.3l8-4.8v19.2Z"/>
-    </symbol>
   </defs>
-  <!-- Caravan icon group -->
-  <g transform="translate(0, 2)">
-    <use href="#nomad" class="nomad-1" x="0" y="4" width="24" height="32"/>
-    <use href="#nomad" class="nomad-2" x="18" y="6" width="18" height="26"/>
-    <use href="#nomad" class="nomad-3" x="32" y="8" width="14" height="20"/>
+  <title>Caravan</title>
+  <!-- Icon group -->
+  <g transform="translate(2, 4)">
+    <!-- Connection paths -->
+    <path class="link" d="M12.8,19.2 L16.8,15.2" opacity="0.4"/>
+    <path class="link" d="M20.8,12.8 L23.2,10.4" opacity="0.25"/>
+    <!-- Lead node -->
+    <rect class="node-1" x="4" y="16.8" width="9.6" height="9.6" rx="2"/>
+    <!-- Middle node -->
+    <rect class="node-2" x="12.8" y="10.4" width="8" height="8" rx="1.6"/>
+    <!-- Distant node -->
+    <rect class="node-3" x="20.8" y="5.6" width="6.4" height="6.4" rx="1.2"/>
+    <!-- Motion dots -->
+    <circle cx="3.2" cy="27.2" r="0.8" fill="#00ca8e" opacity="0.2"/>
   </g>
   <!-- Text -->
-  <text class="text" x="52" y="28">Caravan</text>
+  <text class="text" x="42" y="28">Caravan</text>
 </svg>

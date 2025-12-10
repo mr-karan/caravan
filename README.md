@@ -1,7 +1,7 @@
 # Caravan
 
 <p align="center">
-  <img src="./Nomad-Caravan.svg" alt="Caravan Logo" width="300">
+  <img src="./Caravan-Logo-Minimal.svg" alt="Caravan Logo" width="120">
 </p>
 
 <p align="center">

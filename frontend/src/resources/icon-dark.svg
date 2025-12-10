@@ -2,9 +2,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
   <defs>
     <style>
-      .nomad { fill: #00ca8e; }
+      .node-1 { fill: #00ca8e; }
+      .node-2 { fill: #00ca8e; opacity: 0.55; }
+      .node-3 { fill: #00ca8e; opacity: 0.28; }
+      .link { stroke: #00ca8e; stroke-width: 0.8; stroke-linecap: round; fill: none; }
     </style>
   </defs>
-  <!-- Single Nomad icon -->
-  <path class="nomad" d="M16,3.6L0,10.8v14.4l16,7.2,16-7.2V10.8L16,3.6ZM22.4,19.4l-3.4,1.9-4-2.2v4.6l-3.8,2.4V16.5l3-1.9,4.2,2.2v-4.6l4-2.4v9.6Z"/>
+  <title>Caravan</title>
+  <!-- Connection paths -->
+  <path class="link" d="M12.8,19.2 L16.8,15.2" opacity="0.4"/>
+  <path class="link" d="M20.8,12.8 L23.2,10.4" opacity="0.25"/>
+  <!-- Lead node -->
+  <rect class="node-1" x="4" y="16.8" width="9.6" height="9.6" rx="2"/>
+  <!-- Middle node -->
+  <rect class="node-2" x="12.8" y="10.4" width="8" height="8" rx="1.6"/>
+  <!-- Distant node -->
+  <rect class="node-3" x="20.8" y="5.6" width="6.4" height="6.4" rx="1.2"/>
+  <!-- Motion dots -->
+  <circle cx="3.2" cy="27.2" r="0.8" fill="#00ca8e" opacity="0.2"/>
+  <circle cx="6.4" cy="28.8" r="0.6" fill="#00ca8e" opacity="0.12"/>
 </svg>
