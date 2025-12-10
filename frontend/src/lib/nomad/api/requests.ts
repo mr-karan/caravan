@@ -1,5 +1,5 @@
 import { getAppUrl } from '../../../helpers/getAppUrl';
-import { getCluster } from '../../cluster';
+import { encodeClusterName, getCluster } from '../../cluster';
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
 const API_PREFIX = 'api';
@@ -102,7 +102,8 @@ export async function nomadRequest<T = any>(
     throw error;
   }
   
-  const fullPath = `${CLUSTERS_PREFIX}/${cluster}${path}`;
+  // Encode the cluster name for use in URL path to handle special characters like spaces
+  const fullPath = `${CLUSTERS_PREFIX}/${encodeClusterName(cluster)}${path}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);

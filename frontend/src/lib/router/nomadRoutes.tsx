@@ -233,7 +233,7 @@ export const nomadRoutes: { [routeName: string]: Route } = {
     sidebar: null,
     useClusterURL: false,
     noAuthRequired: true,
-    component: React.lazy(() => import('../../components/App/Login')),
+    component: React.lazy(() => import('../../components/App/Login/index')),
   },
 
   // OIDC Callback - handles redirect from OIDC provider

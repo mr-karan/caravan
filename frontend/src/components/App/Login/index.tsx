@@ -1,7 +1,6 @@
 import { Icon } from '@iconify/react';
 import {
   Alert,
-  alpha,
   Box,
   Button,
   Card,
@@ -18,7 +17,6 @@ import {
   Select,
   TextField,
   Typography,
-  useTheme,
 } from '@mui/material';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -31,11 +29,11 @@ import {
   startOIDCLogin,
   AuthMethod,
 } from '../../../lib/nomad/api/oidc';
+import { getCluster } from '../../../lib/clusterStorage';
 
 export default function Login() {
   const { cluster } = useParams<{ cluster: string }>();
   const navigate = useNavigate();
-  const theme = useTheme();
   
   const clusters = useTypedSelector(state => state.config.clusters) || {};
 
@@ -53,6 +51,11 @@ export default function Login() {
   const clusterInfo = cluster ? clusters[cluster] : undefined;
   const serverAddress = clusterInfo?.server || '';
 
+  // Get stored auth type from localStorage to determine preferred auth method
+  const storedCluster = cluster ? getCluster(cluster) : undefined;
+  const storedOidcMethod = storedCluster?.oidcMethod;
+  const wasOidcAuth = storedCluster?.authType === 'oidc';
+
   // Fetch OIDC methods on mount
   const fetchOidcMethods = useCallback(async () => {
     if (!cluster) return;
@@ -61,16 +64,28 @@ export default function Login() {
       const methods = await listOIDCAuthMethods(cluster);
       setOidcMethods(methods);
       if (methods.length > 0) {
-        // Select default method or first one
-        const defaultMethod = methods.find(m => m.default) || methods[0];
-        setSelectedOidcMethod(defaultMethod.name);
+        // If user previously authenticated with OIDC, prefer their stored method
+        if (storedOidcMethod) {
+          const storedMethod = methods.find(m => m.name === storedOidcMethod);
+          if (storedMethod) {
+            setSelectedOidcMethod(storedMethod.name);
+          } else {
+            // Stored method not found, fall back to default or first
+            const defaultMethod = methods.find(m => m.default) || methods[0];
+            setSelectedOidcMethod(defaultMethod.name);
+          }
+        } else {
+          // Select default method or first one
+          const defaultMethod = methods.find(m => m.default) || methods[0];
+          setSelectedOidcMethod(defaultMethod.name);
+        }
       }
     } catch (err) {
       console.warn('Failed to fetch OIDC methods:', err);
       setOidcMethods([]);
     }
     setLoadingOidc(false);
-  }, [cluster]);
+  }, [cluster, storedOidcMethod]);
 
   useEffect(() => {
     fetchOidcMethods();
@@ -250,12 +265,34 @@ export default function Login() {
             </Alert>
           )}
 
+          {/* Loading state for OIDC users */}
+          {wasOidcAuth && loadingOidc && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4 }}>
+              <CircularProgress size={40} sx={{ mb: 2 }} />
+              <Typography color="text.secondary" sx={{ mb: 2 }}>
+                Loading authentication options...
+              </Typography>
+              <Button variant="text" onClick={handleBackToHome}>
+                Back to Clusters
+              </Button>
+            </Box>
+          )}
+
+          {/* Session expired message for OIDC users */}
+          {wasOidcAuth && !loadingOidc && oidcMethods.length > 0 && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Your session has expired. Please sign in again with your SSO provider.
+            </Alert>
+          )}
+
           {/* OIDC Login Section */}
-          {oidcMethods.length > 0 && (
+          {!loadingOidc && oidcMethods.length > 0 && (
             <>
               <Box sx={{ mb: 3 }}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Sign in with your organization's SSO provider.
+                  {wasOidcAuth
+                    ? 'Sign in again with your organization\'s SSO provider.'
+                    : 'Sign in with your organization\'s SSO provider.'}
                 </Typography>
 
                 {oidcMethods.length > 1 && (
@@ -315,9 +352,10 @@ export default function Login() {
             </>
           )}
 
-          {/* Token Login Form */}
+          {/* Token Login Form - hide while loading OIDC for OIDC users */}
+          {!(wasOidcAuth && loadingOidc) && (
           <form onSubmit={handleLogin}>
-            {oidcMethods.length === 0 && (
+            {oidcMethods.length === 0 && !loadingOidc && (
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Enter your Nomad ACL token to access this cluster.
               </Typography>
@@ -389,6 +427,7 @@ export default function Login() {
               Back to Clusters
             </Button>
           </form>
+          )}
 
           {/* Help Text */}
           <Box sx={{ mt: 3, pt: 3, borderTop: 1, borderColor: 'divider' }}>

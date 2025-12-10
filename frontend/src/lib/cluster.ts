@@ -16,6 +16,26 @@ export function getClusterPrefixedPath(path?: string | null) {
 }
 
 /**
+ * Encode a cluster name for use in URLs.
+ * This handles special characters like spaces.
+ */
+export function encodeClusterName(name: string): string {
+  return encodeURIComponent(name);
+}
+
+/**
+ * Decode a cluster name from a URL.
+ */
+export function decodeClusterName(encoded: string): string {
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    // If decoding fails, return the original string
+    return encoded;
+  }
+}
+
+/**
  * Get the currently selected cluster name.
  *
  * If more than one cluster is selected it will return:
@@ -31,12 +51,12 @@ export function getCluster(urlPath?: string): string | null {
   if (!clusterString) return null;
 
   if (clusterString.includes('+')) {
-    return clusterString.split('+')[0];
+    return decodeClusterName(clusterString.split('+')[0]);
   }
-  return clusterString;
+  return decodeClusterName(clusterString);
 }
 
-/** Returns cluster URL parameter from the current path or the given path */
+/** Returns cluster URL parameter from the current path or the given path (raw, encoded form) */
 export function getClusterPathParam(maybeUrlPath?: string): string | undefined {
   const prefix = getBaseUrl();
   const urlPath = maybeUrlPath ?? window.location.pathname.slice(prefix.length);
@@ -53,27 +73,30 @@ export function getClusterPathParam(maybeUrlPath?: string): string | undefined {
  *
  * Cluster parameter contains selected clusters, with the first one being the current one
  * usually used for details pages.
+ * Each cluster name is URL-encoded to handle special characters like spaces.
  *
  * @param selectedClusters - list of all selected clusters
  * @param currentCluster - (optional) cluster name of the current cluster
- * @returns formatted cluster parameter
+ * @returns formatted and encoded cluster parameter
  */
 export const formatClusterPathParam = (selectedClusters: string[], currentCluster?: string) =>
   (currentCluster
     ? // Put current cluster as first
       [currentCluster, ...without(selectedClusters, currentCluster)]
     : selectedClusters
-  ).join('+');
+  )
+    .map(encodeClusterName)
+    .join('+');
 
 /**
  * Gets clusters.
  *
  * @param returnWhenNoClusters return this value when no clusters are found.
- * @returns the cluster group from the URL.
+ * @returns the cluster group from the URL (decoded).
  */
 export function getClusterGroup(returnWhenNoClusters: string[] = []): string[] {
   const clusterFromURL = getCluster();
-  return clusterFromURL?.split('+') || returnWhenNoClusters;
+  return clusterFromURL?.split('+').map(decodeClusterName) || returnWhenNoClusters;
 }
 
 /**
@@ -81,12 +104,12 @@ export function getClusterGroup(returnWhenNoClusters: string[] = []): string[] {
  *
  * @param returnWhenNoClusters return this value when no clusters are found.
  * @param urlPath optional, path string containing cluster parameters.
- * @returns the cluster group from the URL.
+ * @returns the cluster group from the URL (decoded).
  */
 export function getSelectedClusters(
   returnWhenNoClusters: string[] = [],
   urlPath?: string
 ): string[] {
   const clusterFromURL = getClusterPathParam(urlPath);
-  return clusterFromURL?.split('+') || returnWhenNoClusters;
+  return clusterFromURL?.split('+').map(decodeClusterName) || returnWhenNoClusters;
 }

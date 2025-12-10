@@ -181,6 +181,7 @@ function AddClusterDialog({
   const [oidcMethods, setOidcMethods] = useState<AuthMethod[]>([]);
   const [loadingOidc, setLoadingOidc] = useState(false);
   const [oidcStatus, setOidcStatus] = useState<'idle' | 'waiting' | 'success' | 'error'>('idle');
+  const [showToken, setShowToken] = useState(false);
 
   const steps = ['Connection', 'Authentication', 'Confirm'];
 
@@ -375,6 +376,7 @@ function AddClusterDialog({
     setTestResult(null);
     setOidcStatus('idle');
     setOidcMethods([]);
+    setShowToken(false);
     onClose();
   };
 
@@ -587,11 +589,23 @@ function AddClusterDialog({
                 onChange={e => setFormData({ ...formData, token: e.target.value })}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                 fullWidth
-                type="password"
+                type={showToken ? 'text' : 'password'}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
                       <Icon icon="mdi:key" width={20} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowToken(!showToken)}
+                        edge="end"
+                        size="small"
+                        aria-label={showToken ? 'Hide token' : 'Show token'}
+                      >
+                        <Icon icon={showToken ? 'mdi:eye-off' : 'mdi:eye'} width={20} />
+                      </IconButton>
                     </InputAdornment>
                   ),
                 }}
@@ -1265,6 +1279,8 @@ export default function Home() {
       namespace: data.namespace || undefined,
       token: tokenValue,
       aclEnabled: data.aclEnabled,
+      authType: data.authType,
+      oidcMethod: data.authType === 'oidc' ? data.oidcMethod : undefined,
     });
 
     // Refresh config
@@ -1283,6 +1299,11 @@ export default function Home() {
 
     dispatch(setConfig({ clusters: clustersToConfig }));
     setError(null);
+    
+    // Immediately fetch health for the new cluster to avoid stale state
+    // The useEffect will also trigger, but this ensures immediate update
+    const health = await fetchClusterHealth(data.name);
+    setClusterHealth(prev => ({ ...prev, [data.name]: health }));
   };
 
   const handleDeleteCluster = async () => {

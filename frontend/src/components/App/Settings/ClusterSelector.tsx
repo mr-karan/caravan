@@ -17,7 +17,7 @@ const ClusterSelector: React.FC<ClusterSelectorProps> = ({ currentCluster = '', 
         labelId="settings--cluster-selector"
         value={currentCluster}
         onChange={event => {
-          navigate(`/settings/cluster?c=${event.target.value}`, { replace: true });
+          navigate(`/settings/cluster?c=${encodeURIComponent(event.target.value as string)}`, { replace: true });
         }}
         label="Cluster"
         autoWidth

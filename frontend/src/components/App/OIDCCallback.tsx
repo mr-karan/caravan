@@ -364,7 +364,7 @@ export default function OIDCCallback() {
         } else {
           // Not a popup, redirect to the return URL or cluster home
           setTimeout(() => {
-            navigate(returnTo || `/c/${cluster}`);
+            navigate(returnTo || `/c/${encodeURIComponent(cluster)}`);
           }, 1800);
         }
       } catch (err) {

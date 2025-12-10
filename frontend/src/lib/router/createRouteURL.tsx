@@ -1,6 +1,6 @@
 import { generatePath } from 'react-router';
 import type { AppStore } from '../../redux/stores/store';
-import { getClusterPathParam } from '../cluster';
+import { encodeClusterName, getClusterPathParam } from '../cluster';
 import { getRoute } from './getRoute';
 import { getRoutePath } from './getRoutePath';
 import { getRouteUseClusterURL } from './getRouteUseClusterURL';
@@ -60,9 +60,10 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
     return '';
   }
 
-  let cluster = params.cluster;
+  // Get cluster: either from params (needs encoding) or from URL (already encoded)
+  let cluster = params.cluster ? encodeClusterName(params.cluster) : undefined;
   if (!cluster && getRouteUseClusterURL(route)) {
-    cluster = getClusterPathParam();
+    cluster = getClusterPathParam(); // Already encoded from URL
     if (!cluster) {
       return '/';
     }
@@ -72,14 +73,17 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
     ...params,
   };
 
-  // Add cluster to the params if it is not already there
+  // Add encoded cluster to the params if it is not already there
   if (!fullParams.cluster && !!cluster) {
     fullParams.cluster = cluster;
+  } else if (fullParams.cluster) {
+    // Encode cluster from params
+    fullParams.cluster = encodeClusterName(fullParams.cluster);
   }
 
   // @todo: Remove this hack once we support redirection in routes
   if (routeName === 'settingsCluster') {
-    return `/settings/cluster?c=${fullParams.cluster}`;
+    return `/settings/cluster?c=${encodeURIComponent(fullParams.cluster || '')}`;
   }
 
   const url = getRoutePath(route);

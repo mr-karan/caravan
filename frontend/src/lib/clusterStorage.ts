@@ -14,6 +14,10 @@ export interface StoredCluster {
   token?: string;
   /** Whether ACL is enabled on this cluster. If false, no token is required. */
   aclEnabled?: boolean;
+  /** The authentication type used for this cluster: 'token', 'oidc', or 'none' */
+  authType?: 'token' | 'oidc' | 'none';
+  /** The OIDC method name used for authentication (only relevant when authType is 'oidc') */
+  oidcMethod?: string;
 }
 
 /**

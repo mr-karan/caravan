@@ -5,7 +5,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import cloneDeep from 'lodash/cloneDeep';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { generatePath, useLocation, useNavigate } from 'react-router-dom';
-import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
+import { encodeClusterName, getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { getRoute } from '../../lib/router';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
@@ -165,7 +165,7 @@ export default function NavigationTabs() {
 
       const item = subList[index];
       if (item.url && item.useClusterURL && currentCluster) {
-        navigate(generatePath(getClusterPrefixedPath(item.url), { cluster: currentCluster }));
+        navigate(generatePath(getClusterPrefixedPath(item.url), { cluster: encodeClusterName(currentCluster) }));
       } else if (item.url) {
         navigate(item.url);
       } else {
@@ -183,7 +183,7 @@ export default function NavigationTabs() {
       const url = secondLevelSidebarItems[index].url;
       const useClusterURL = !!secondLevelSidebarItems[index].useClusterURL;
       if (url && useClusterURL && currentCluster) {
-        navigate(generatePath(getClusterPrefixedPath(url), { cluster: currentCluster }));
+        navigate(generatePath(getClusterPrefixedPath(url), { cluster: encodeClusterName(currentCluster) }));
       } else if (url) {
         navigate(url);
       } else {
