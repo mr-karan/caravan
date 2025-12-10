@@ -39,6 +39,8 @@ export default defineConfig({
     distPath: {
       root: 'build',
     },
+    // Use absolute paths for assets to work with SPA routing on deep routes
+    assetPrefix: '/',
     overrideBrowserslist: ['>0.2%', 'not dead', 'not op_mini all'],
     copy: [
       {

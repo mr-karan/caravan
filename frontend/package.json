@@ -103,7 +103,7 @@
     "start": "cross-env REACT_APP_CARAVAN_BACKEND_TOKEN=caravan vite",
     "preview": "vite preview",
     "prebuild": "bun run make-version",
-    "build": "cross-env PUBLIC_URL=./ NODE_OPTIONS=--max-old-space-size=8096 vite build && bunx shx rm -f build/frontend/index.baseUrl.html",
+    "build": "cross-env PUBLIC_URL=/ NODE_OPTIONS=--max-old-space-size=8096 vite build && bunx shx rm -f build/frontend/index.baseUrl.html",
     "pretest": "bun run make-version",
     "test": "vitest",
     "start-without-multiplexer": "cross-env REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER=false bun run start",

@@ -247,3 +247,29 @@ func (h *Handler) ScaleJob(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, resp)
 }
+
+// GetJobEvaluations handles GET /clusters/{cluster}/v1/job/evaluations?id=jobID
+func (h *Handler) GetJobEvaluations(w http.ResponseWriter, r *http.Request) {
+	clusterName := getClusterName(r)
+	token := getToken(r)
+	jobID := r.URL.Query().Get("id")
+	if jobID == "" {
+		writeError(w, fmt.Errorf("job id is required"), http.StatusBadRequest)
+		return
+	}
+
+	client, err := h.GetClientWithToken(clusterName, token)
+	if err != nil {
+		writeError(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	opts := getQueryOptions(r)
+	evals, _, err := client.Jobs().Evaluations(jobID, opts)
+	if err != nil {
+		writeNomadError(w, err)
+		return
+	}
+
+	writeJSON(w, evals)
+}

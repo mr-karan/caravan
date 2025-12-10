@@ -1,4 +1,4 @@
-import { Job, JobListStub, AllocationListStub } from '../types';
+import { Job, JobListStub, AllocationListStub, Evaluation } from '../types';
 import { get, post, remove } from './requests';
 
 export interface ListJobsParams {
@@ -83,4 +83,11 @@ export function scaleJob(
     error: false,
     meta: {},
   });
+}
+
+/**
+ * Get evaluations for a job
+ */
+export function getJobEvaluations(jobId: string, namespace?: string): Promise<Evaluation[]> {
+  return get('/v1/job/evaluations', { id: jobId, namespace });
 }

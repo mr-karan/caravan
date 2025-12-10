@@ -231,9 +231,10 @@ func addNomadRoutes(config *CaravanConfig, mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/clusters/{cluster}/v1/job", h.UpdateJob)                    // ?id=jobID
 	mux.HandleFunc("DELETE /api/clusters/{cluster}/v1/job", h.DeleteJob)                  // ?id=jobID
 	mux.HandleFunc("POST /api/clusters/{cluster}/v1/job/dispatch", h.DispatchJob)         // ?id=jobID
-	mux.HandleFunc("GET /api/clusters/{cluster}/v1/job/allocations", h.GetJobAllocations) // ?id=jobID
-	mux.HandleFunc("GET /api/clusters/{cluster}/v1/job/versions", h.GetJobVersions)       // ?id=jobID
-	mux.HandleFunc("POST /api/clusters/{cluster}/v1/job/scale", h.ScaleJob)               // ?id=jobID
+	mux.HandleFunc("GET /api/clusters/{cluster}/v1/job/allocations", h.GetJobAllocations)   // ?id=jobID
+	mux.HandleFunc("GET /api/clusters/{cluster}/v1/job/versions", h.GetJobVersions)         // ?id=jobID
+	mux.HandleFunc("GET /api/clusters/{cluster}/v1/job/evaluations", h.GetJobEvaluations)   // ?id=jobID
+	mux.HandleFunc("POST /api/clusters/{cluster}/v1/job/scale", h.ScaleJob)                 // ?id=jobID
 
 	// Allocations
 	mux.HandleFunc("GET /api/clusters/{cluster}/v1/allocations", h.ListAllocations)

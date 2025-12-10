@@ -11,6 +11,7 @@ export {
   dispatchJob,
   getJobAllocations,
   getJobVersions,
+  getJobEvaluations,
   scaleJob,
 } from './jobs';
 export type { ListJobsParams, JobVersions } from './jobs';

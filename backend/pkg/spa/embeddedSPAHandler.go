@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"mime"
 	"net/http"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/caravan-nomad/caravan/backend/pkg/logger"
@@ -24,21 +24,49 @@ type embeddedSpaHandler struct {
 
 // ServeHTTP serves the static files embedded in the binary.
 func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, h.baseURL)
+	urlPath := strings.TrimPrefix(r.URL.Path, h.baseURL)
+	// Clean and normalize the path - remove leading slash for embed.FS compatibility
+	urlPath = strings.TrimPrefix(urlPath, "/")
 
-	if path == "" || path == "/" {
-		path = h.indexPath
+	if urlPath == "" {
+		urlPath = h.indexPath
 	}
 
 	// Prepend "static" to the path as that's the root in our embed.FS
-	fullPath := filepath.Join("static", path)
+	// Use path.Join (not filepath.Join) because embed.FS always uses forward slashes
+	fullPath := path.Join("static", urlPath)
 
 	content, err := h.serveFile(fullPath)
 	isServingIndex := false
 
+	// Check if we're requesting a static asset (has a file extension)
+	// Don't fall back to index.html for missing static assets - return 404 instead
+	hasExtension := strings.Contains(path.Base(urlPath), ".")
+	isStaticAsset := hasExtension && (strings.HasPrefix(urlPath, "assets/") ||
+		strings.HasSuffix(urlPath, ".js") ||
+		strings.HasSuffix(urlPath, ".css") ||
+		strings.HasSuffix(urlPath, ".json") ||
+		strings.HasSuffix(urlPath, ".map") ||
+		strings.HasSuffix(urlPath, ".woff") ||
+		strings.HasSuffix(urlPath, ".woff2") ||
+		strings.HasSuffix(urlPath, ".png") ||
+		strings.HasSuffix(urlPath, ".svg") ||
+		strings.HasSuffix(urlPath, ".ico"))
+
 	if err != nil {
-		// If there's any error, serve the index file
-		content, err = h.serveFile(filepath.Join("static", h.indexPath))
+		// For static assets, return 404 instead of falling back to index.html
+		// This prevents the browser from caching HTML as JavaScript/CSS
+		if isStaticAsset {
+			logger.Log(logger.LevelError, map[string]string{
+				"path":     urlPath,
+				"fullPath": fullPath,
+			}, err, "static asset not found in embedded files")
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+
+		// For non-static routes, serve the index file (SPA routing)
+		content, err = h.serveFile(path.Join("static", h.indexPath))
 		if err != nil {
 			http.Error(w, "Unable to read index file", http.StatusInternalServerError)
 			return
@@ -47,7 +75,7 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		isServingIndex = true
 	} else {
 		// Check if we're directly serving the index file
-		isServingIndex = path == h.indexPath || path == "/"+h.indexPath || path == "/"+h.indexPath+"/"
+		isServingIndex = urlPath == h.indexPath
 	}
 
 	// if we're serving the index.html file and have a baseURL, replace the caravanBaseUrl with the baseURL
@@ -63,7 +91,7 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set the correct Content-Type header
-	ext := filepath.Ext(fullPath)
+	ext := path.Ext(fullPath)
 
 	contentType := mime.TypeByExtension(ext)
 	if contentType == "" {

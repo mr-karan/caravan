@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	staticTestPath = "caravan_testdata/static_files/"
+	staticTestPath = "headlamp_testdata/static_files/"
 )
 
 // Is supposed to return the index.html if there is no static file.
