@@ -32,6 +32,7 @@ import { DateLabel } from '../../common/Label';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import TaskLogs from './TaskLogs';
 import TaskExec from './TaskExec';
+import FileBrowser from './FileBrowser';
 import { MinimalStatus, minimalStatusColors, getStatusCategory } from '../statusStyles';
 
 // Stats polling interval in milliseconds
@@ -66,6 +67,13 @@ function StatItem({
   color?: string;
 }) {
   const theme = useTheme();
+  
+  // Format number: show 1 decimal for floats, no decimal for integers
+  const formatValue = (val: number | string) => {
+    if (typeof val !== 'number') return val;
+    return Number.isInteger(val) ? val.toString() : val.toFixed(1);
+  };
+  
   return (
     <Box sx={{ minWidth: 100 }}>
       <Typography
@@ -91,7 +99,7 @@ function StatItem({
             fontVariantNumeric: 'tabular-nums',
           }}
         >
-          {typeof value === 'number' ? value.toFixed(1) : value}
+          {formatValue(value)}
         </Typography>
         {unit && (
           <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
@@ -427,8 +435,11 @@ export default function AllocationDetails() {
   const statusColor = colors[statusCategory];
 
   const cpuPercent = stats?.ResourceUsage?.CpuStats?.Percent || 0;
-  const memoryMB = (stats?.ResourceUsage?.MemoryStats?.RSS || 0) / 1024 / 1024;
-  const memoryMaxMB = (stats?.ResourceUsage?.MemoryStats?.MaxUsage || 0) / 1024 / 1024;
+  // Use RSS if available, otherwise fall back to Usage (RSS may not be measured on all systems)
+  const memoryStats = stats?.ResourceUsage?.MemoryStats;
+  const memoryBytes = memoryStats?.RSS || memoryStats?.Usage || 0;
+  const memoryMB = memoryBytes / 1024 / 1024;
+  const memoryMaxMB = (memoryStats?.MaxUsage || 0) / 1024 / 1024;
   const runningTasks = taskStates.filter(t => t.State === 'running').length;
 
   return (
@@ -581,6 +592,7 @@ export default function AllocationDetails() {
           <Tab label={`Tasks (${taskStates.length})`} icon={<Icon icon="mdi:cube-outline" width={16} />} iconPosition="start" />
           <Tab label="Logs" icon={<Icon icon="mdi:text-box-outline" width={16} />} iconPosition="start" />
           <Tab label="Exec" icon={<Icon icon="mdi:console" width={16} />} iconPosition="start" />
+          <Tab label="Files" icon={<Icon icon="mdi:folder-outline" width={16} />} iconPosition="start" />
           <Tab label="Events" icon={<Icon icon="mdi:history" width={16} />} iconPosition="start" />
         </Tabs>
       </Box>
@@ -748,8 +760,42 @@ export default function AllocationDetails() {
         </Box>
       </TabPanel>
 
-      {/* Events Tab */}
+      {/* Files Tab */}
       <TabPanel value={tabValue} index={4}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 320px)', minHeight: 400 }}>
+          {/* Task selector for file browser */}
+          <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5, flexWrap: 'wrap' }}>
+            <Button
+              variant={!selectedTask ? 'contained' : 'outlined'}
+              onClick={() => setSelectedTask(null)}
+              size="small"
+              sx={{ textTransform: 'none', borderRadius: 1, px: 1.5, py: 0.5, fontSize: '0.75rem' }}
+              startIcon={<Icon icon="mdi:folder-multiple" width={14} />}
+            >
+              All Files
+            </Button>
+            {taskStates.map(task => (
+              <Button
+                key={task.name}
+                variant={selectedTask === task.name ? 'contained' : 'outlined'}
+                onClick={() => setSelectedTask(task.name)}
+                size="small"
+                sx={{ textTransform: 'none', borderRadius: 1, px: 1.5, py: 0.5, fontSize: '0.75rem' }}
+                startIcon={<Icon icon="mdi:folder-outline" width={14} />}
+              >
+                {task.name}
+              </Button>
+            ))}
+          </Box>
+
+          <Paper elevation={0} sx={{ flexGrow: 1, borderRadius: 1, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+            {id && <FileBrowser allocId={id} taskName={selectedTask || undefined} />}
+          </Paper>
+        </Box>
+      </TabPanel>
+
+      {/* Events Tab */}
+      <TabPanel value={tabValue} index={5}>
         {taskStates.map(task => (
           <Box key={task.name} sx={{ mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
