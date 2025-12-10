@@ -8,11 +8,20 @@ default:
     @just --list
 
 # ============================================================================
+# Setup
+# ============================================================================
+
+# First-time setup - install all dependencies
+init: install-backend install-frontend
+    @echo ""
+    @echo "✓ Setup complete! Run 'just dev' to start developing."
+
+# ============================================================================
 # Development
 # ============================================================================
 
 # Run everything needed for development (backend + frontend)
-dev: build-backend
+dev: install-frontend build-backend
     #!/usr/bin/env bash
     echo "Starting Nomad Caravan in development mode..."
     echo "Backend: http://localhost:4466"
