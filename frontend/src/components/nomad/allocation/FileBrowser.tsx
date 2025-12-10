@@ -203,17 +203,30 @@ export default function FileBrowser({ allocId, taskName }: FileBrowserProps) {
     }
   }, [allocId, taskName]);
 
-  // Reset path and file viewer when task or allocation changes
-  useEffect(() => {
-    setCurrentPath('/');
-    setSelectedFile(null);
-    setFileContent(null);
-    setFileError(null);
-  }, [allocId, taskName]);
+  // Track previous taskName to detect changes
+  const prevTaskNameRef = React.useRef(taskName);
+  const prevAllocIdRef = React.useRef(allocId);
 
   useEffect(() => {
-    loadFiles(currentPath);
-  }, [loadFiles, currentPath]);
+    const taskChanged = prevTaskNameRef.current !== taskName;
+    const allocChanged = prevAllocIdRef.current !== allocId;
+    
+    // Update refs
+    prevTaskNameRef.current = taskName;
+    prevAllocIdRef.current = allocId;
+
+    // If task or allocation changed, reset to root and load
+    if (taskChanged || allocChanged) {
+      setCurrentPath('/');
+      setSelectedFile(null);
+      setFileContent(null);
+      setFileError(null);
+      loadFiles('/');
+    } else {
+      // Normal path navigation
+      loadFiles(currentPath);
+    }
+  }, [allocId, taskName, currentPath, loadFiles]);
 
   const handleNavigate = (path: string) => {
     setCurrentPath(path);
