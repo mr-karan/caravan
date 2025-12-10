@@ -203,6 +203,14 @@ export default function FileBrowser({ allocId, taskName }: FileBrowserProps) {
     }
   }, [allocId, taskName]);
 
+  // Reset path and file viewer when task or allocation changes
+  useEffect(() => {
+    setCurrentPath('/');
+    setSelectedFile(null);
+    setFileContent(null);
+    setFileError(null);
+  }, [allocId, taskName]);
+
   useEffect(() => {
     loadFiles(currentPath);
   }, [loadFiles, currentPath]);
