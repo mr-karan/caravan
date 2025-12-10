@@ -439,7 +439,13 @@ export default function AllocationDetails() {
   const memoryStats = stats?.ResourceUsage?.MemoryStats;
   const memoryBytes = memoryStats?.RSS || memoryStats?.Usage || 0;
   const memoryMB = memoryBytes / 1024 / 1024;
-  const memoryMaxMB = (memoryStats?.MaxUsage || 0) / 1024 / 1024;
+  // Calculate total allocated memory limit from all tasks
+  const allocatedMemoryMB = allocation.AllocatedResources?.Tasks
+    ? Object.values(allocation.AllocatedResources.Tasks).reduce(
+        (sum, task) => sum + (task.Memory?.MemoryMB || 0),
+        0
+      )
+    : 0;
   const runningTasks = taskStates.filter(t => t.State === 'running').length;
 
   return (
@@ -544,9 +550,9 @@ export default function AllocationDetails() {
         />
         <StatItem
           label="Memory"
-          value={memoryMB}
+          value={allocatedMemoryMB > 0 ? `${memoryMB.toFixed(0)} / ${allocatedMemoryMB}` : memoryMB.toFixed(1)}
           unit="MB"
-          percent={memoryMaxMB > 0 ? (memoryMB / memoryMaxMB) * 100 : undefined}
+          percent={allocatedMemoryMB > 0 ? (memoryMB / allocatedMemoryMB) * 100 : undefined}
           color={theme.palette.success.main}
         />
         <StatItem
