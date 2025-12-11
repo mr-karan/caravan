@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     cd ./backend && go build -o ./caravan-server ./cmd/
 
 # Build frontend
-FROM --platform=${BUILDPLATFORM} node:22@sha256:4ad2c2b350ab49fb637ab40a269ffe207c61818bb7eb3a4ea122001a0c605e1f AS frontend-build
+FROM --platform=${BUILDPLATFORM} oven/bun:1@sha256:bb8bd32956bb38e896c57a3c62a3e93f86f8e8a792e9aa05cc571fc2ad6e52fa AS frontend-build
 
 WORKDIR /caravan
 
@@ -37,12 +37,12 @@ COPY .git/ ./caravan/.git/
 COPY package.json /caravan/package.json
 
 # Install dependencies
-COPY frontend/package*.json /caravan/frontend/
-RUN cd ./frontend && npm ci
+COPY frontend/package.json frontend/bun.lock /caravan/frontend/
+RUN cd ./frontend && bun install --frozen-lockfile
 
 # Build frontend
 COPY ./frontend /caravan/frontend
-RUN cd ./frontend && npm run build
+RUN cd ./frontend && bun run build
 
 # Create empty plugins directory
 RUN mkdir -p /caravan/plugins
