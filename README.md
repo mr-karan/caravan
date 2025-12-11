@@ -24,7 +24,27 @@
 
 Caravan is a **single binary** with the UI embedded. No database, no config files — just run it.
 
-Download the latest release for your platform, or build from source:
+### Download Binary
+
+Grab the latest release from [GitHub Releases](https://github.com/mr-karan/caravan/releases):
+
+```bash
+# Linux (amd64)
+curl -sL https://github.com/mr-karan/caravan/releases/latest/download/caravan_linux_amd64.tar.gz | tar xz
+./caravan
+
+# macOS (Apple Silicon)
+curl -sL https://github.com/mr-karan/caravan/releases/latest/download/caravan_darwin_arm64.zip -o caravan.zip && unzip caravan.zip
+./caravan
+```
+
+### Docker
+
+```bash
+docker run -p 4466:4466 ghcr.io/mr-karan/caravan:latest
+```
+
+### Build from Source
 
 ```bash
 just build-embed
